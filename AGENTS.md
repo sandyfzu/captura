@@ -1,0 +1,347 @@
+# AGENTS.md — xshot
+
+## Project Identity
+
+**xshot** is a production-grade Node.js native module implemented in Rust. It is a high-level, ergonomic, and safe wrapper around the `xcap` crate, using `napi-rs` as the binding layer to expose cross-platform screen capture capabilities to Node.js and TypeScript consumers.
+
+The module is designed to be published as an npm package with full TypeScript type definitions, platform-specific binary distribution, and a promise-based async API.
+
+---
+
+## Target Platforms
+
+- macOS (x64 and arm64)
+- Linux (X11 and Wayland)
+- Windows (x64 and arm64)
+
+All three platforms are first-class citizens. The public API must behave consistently across platforms. Platform-specific differences in data (e.g., DPI scaling, monitor naming, coordinate systems) must be normalized at the Rust layer before reaching JavaScript.
+
+---
+
+## Architecture
+
+The codebase is organized into four clearly separated layers. Do not mix concerns across layers.
+
+### Core Layer (Rust / xcap abstraction)
+
+- Pure Rust logic that interfaces with the `xcap` crate.
+- No Node.js or NAPI-rs types in this layer.
+- Wraps `xcap::Monitor`, `xcap::Window`, and related types.
+- Handles all platform-specific normalization (DPI, coordinates, monitor metadata differences across macOS/Linux/Windows).
+- Returns domain types, not raw `xcap` types.
+
+### Domain Layer
+
+- Defines domain models (`Monitor`, `Screenshot`, `MonitorInfo`, etc.).
+- Contains business logic independent of any transport or binding mechanism.
+- Models are plain Rust structs; they do not derive or implement NAPI traits.
+
+### Interop Layer (NAPI-rs bindings)
+
+- The **only** layer that imports `napi` and `napi_derive`.
+- Responsible for exposing public functions to Node.js via `#[napi]` macros.
+- Converts domain types into NAPI-compatible types for serialization.
+- Converts Rust errors into JavaScript `Error` objects with structured codes and messages.
+- All exposed functions are `async` and return `Promise` to JavaScript.
+
+### Utility Layer
+
+- Shared helpers: error conversion, image encoding, buffer manipulation, cross-platform normalization logic.
+- Used by multiple layers; must not depend on NAPI types.
+
+---
+
+## Rust Coding Standards
+
+### General
+
+- Write idiomatic Rust. Follow Rust API Guidelines (https://rust-lang.github.io/api-guidelines/).
+- All code must be **Clippy-clean** with no warnings.
+- Use `Result<T, E>` for all fallible operations. Propagate errors with `?`.
+- **Never use `unwrap()` or `expect()` in production code paths.** These are only acceptable in tests.
+- Use `thiserror` for defining custom error types.
+- Use `cfg` attributes for platform-specific code; isolate platform-specific implementations into separate modules.
+
+### Functions
+
+- Functions must be small, focused, and adhere to single-responsibility.
+- Decompose complex logic into reusable internal functions.
+- No duplicated logic; extract shared behavior into reusable internal functions. Use the utility layer for logic that is shared across multiple layers.
+
+### Safety
+
+- No `unsafe` code unless absolutely required and thoroughly documented with `// SAFETY:` comments explaining the invariant.
+- **Panics must never cross the FFI boundary.** Use `std::panic::catch_unwind` at the interop layer boundary if calling code that could theoretically panic.
+- No undefined behavior. Rust's ownership and borrowing rules must be respected without workarounds.
+- No resource leaks: buffers, file handles, and OS handles must be properly released.
+
+### Logging
+
+- Use the `log` crate for structured logging when useful.
+- Do not log sensitive information.
+
+---
+
+## Error Handling
+
+### Critical Constraint
+
+**Panics must never propagate to JavaScript.** Every panic must be caught at the interop boundary and converted into a structured error.
+
+### Error Type Design
+
+Define a unified error enum (e.g., `XshotError`) using `thiserror`. Every error variant must include:
+
+- A clear, human-readable message.
+- An error category/code (string identifier for programmatic matching on the JS side).
+- Contextual metadata when applicable (e.g., monitor ID, platform name).
+
+### Error Categories
+
+The error enum should cover at least these categories:
+
+| Category | Description |
+|---|---|
+| `INITIALIZATION_ERROR` | Failure during module or runtime initialization |
+| `MONITOR_NOT_FOUND` | Requested monitor ID does not exist |
+| `CAPTURE_FAILED` | Screenshot or capture operation failed |
+| `PERMISSION_DENIED` | OS denied screen capture permission (common on macOS) |
+| `PLATFORM_NOT_SUPPORTED` | Feature unavailable on the current OS |
+| `ENCODING_ERROR` | Image encoding/conversion failure |
+| `INVALID_ARGUMENT` | Invalid parameter passed by the caller |
+| `INTERNAL_ERROR` | Unexpected internal failure (catch-all) |
+| `TIMEOUT_ERROR` | Operation exceeded expected time bounds |
+| `RESOURCE_UNAVAILABLE` | OS resource (monitor, window) became unavailable |
+
+Additional categories should be added when they make semantic sense for the domain.
+
+### JavaScript Representation
+
+- Errors are surfaced as standard JavaScript `Error` objects.
+- Each error should include a `code` property (string) matching the category.
+- Prefer structured error information over plain message strings.
+
+---
+
+## Concurrency & Async Model
+
+- Use **tokio** as the async runtime. NAPI-rs has built-in tokio integration — `async fn` decorated with `#[napi]` automatically runs on the tokio runtime and returns a JavaScript `Promise`.
+- All I/O, capture operations, and potentially blocking work must be offloaded to async tasks.
+- **Never block the Node.js main thread.**
+- Use `tokio::task::spawn_blocking` for CPU-bound or synchronous xcap calls that cannot be made async.
+- Do not spawn unnecessary tasks; keep the concurrency model simple and predictable.
+
+---
+
+## Cross-Platform Requirements
+
+### API Consistency
+
+- The public API surface must be identical across macOS, Linux, and Windows.
+- Monitor metadata (resolution, position, scale factor, DPI, name) must be normalized to a consistent structure regardless of OS.
+- Platform-specific differences in what `xcap` returns (e.g., macOS uses different DPI semantics than Windows, Linux X11 vs Wayland differences) must be handled transparently in the core layer.
+
+### Conditional Compilation
+
+- Use `#[cfg(target_os = "...")]` to isolate platform-specific code.
+- Keep platform-specific modules separate (e.g., `platform/macos.rs`, `platform/linux.rs`, `platform/windows.rs`).
+- The interop layer must never contain `cfg` attributes — all platform branching must be resolved in the core or utility layers.
+
+### Graceful Degradation
+
+- If a feature is unsupported on a platform (e.g., Wayland has limited screen capture in certain scenarios), return a clear `PLATFORM_NOT_SUPPORTED` error instead of panicking or returning garbage data.
+
+---
+
+## Node.js / TypeScript API Design
+
+### Goals
+
+- Intuitive, minimal-friction API.
+- Fully typed with TypeScript definitions (auto-generated by `napi-rs`).
+- Promise-based — every function returns a `Promise`.
+- Predictable: no ambiguous return values, no implicit behavior.
+
+### Naming Conventions
+
+- Use camelCase for all public function names (NAPI-rs converts Rust snake_case automatically).
+- Use clear, descriptive names: `getMonitors`, `getMonitorById`, `captureMonitor`, `captureAllMonitors`.
+- Avoid abbreviations unless universally understood.
+
+### API Shape (Conceptual)
+
+```ts
+// Monitor management
+const monitors: Monitor[] = await getMonitors()
+const monitor: Monitor = await getMonitorById(id) // throws MONITOR_NOT_FOUND if id does not exist
+
+// Screen capture
+const screenshot: Buffer = await captureMonitor(id)         // PNG-encoded Buffer
+const screenshots: Screenshot[] = await captureAllMonitors() // one entry per monitor
+```
+
+### Data Structures
+
+- Return strongly typed interfaces/objects.
+- No ambiguous return values — prefer throwing a structured error over returning `null` or `undefined`. Only return `null` when absence is a valid, expected state (e.g., an optional field with no value on a given platform).
+- `getMonitorById` must throw a `MONITOR_NOT_FOUND` error when the ID does not exist — it must never return `null`.
+- `Screenshot` pairs a monitor's metadata with its captured image:
+
+```ts
+interface Screenshot {
+  monitor: Monitor
+  data: Buffer // PNG-encoded by default
+}
+```
+
+- Monitor metadata should be a flat, self-descriptive object:
+
+```ts
+interface Monitor {
+  id: number
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
+  scaleFactor: number
+  frequency: number
+  isPrimary: boolean
+  isBuiltin: boolean
+}
+```
+
+---
+
+## Memory & Data Handling
+
+- Use `Buffer` (via NAPI-rs `Buffer` type) for returning image data to JavaScript.
+- **Image buffers returned to JavaScript are encoded (e.g., PNG by default)**, not raw RGBA pixel data. A Node.js `Buffer` containing raw RGBA is not self-describing — the consumer would need out-of-band knowledge of dimensions and pixel format to use it. An encoded buffer (PNG) is immediately useful: it can be written to disk, served over HTTP, or passed to any image library without additional processing.
+- Encoding is performed on the Rust side using the `image` crate (already a transitive dependency via `xcap`) before transferring ownership to JavaScript.
+- Other encoding format options (JPEG, WebP, AVIF, etc.) should be supported via an optional parameter and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic.
+- Avoid unnecessary memory copies. Prefer zero-copy transfer where safe and practical.
+- Large image buffers must not be cloned unnecessarily — encode once on the Rust side and transfer ownership to JavaScript.
+- Be mindful of encoded buffer sizes, especially for high-DPI monitors (source RGBA is width × height × 4 bytes before encoding).
+
+---
+
+## Testing Strategy
+
+### Rust Unit Tests
+
+- Write unit tests for:
+  - Core logic (monitor listing, metadata normalization, capture orchestration).
+  - Error handling (every error variant is constructible and renders a meaningful message).
+  - Edge cases (no monitors available, invalid IDs, zero-size regions).
+  - Cross-platform normalization logic (mock platform-specific inputs where feasible).
+  - Utility functions (encoding, conversion, buffer helpers).
+
+### Node.js Integration Tests
+
+- Write integration tests that exercise the compiled `.node` binary:
+  - Validate that all exported functions exist and return the expected types.
+  - Validate async behavior (functions return Promises that resolve correctly).
+  - Validate error propagation (errors from Rust surface as JS `Error` objects with correct `code` properties).
+  - Validate returned data structures match the TypeScript interfaces.
+
+### Cross-Platform Validation
+
+- Tests must be designed to pass on macOS, Linux, and Windows.
+- Use CI (GitHub Actions with matrix builds) to validate all platforms.
+- Tests that depend on a physical display should be skippable in headless CI environments with clear skip messages rather than failures.
+
+---
+
+## Dependency Policy
+
+- Use the latest stable versions of all core dependencies.
+- All dependencies must be actively maintained and compatible with each other.
+- Core Rust dependencies:
+  - `xcap` — screen capture abstraction
+  - `napi` and `napi-derive` — Node.js binding framework
+  - `napi-build` — build script helper
+  - `tokio` — async runtime (with the `async` feature in napi)
+  - `thiserror` — ergonomic error types
+  - `image` — image encoding (transitive dependency via `xcap`; do not add as a direct dependency unless encoding utilities require types or functions from it that `xcap` does not re-export)
+- Node.js tooling:
+  - `@napi-rs/cli` — build and publish toolchain
+- Do not add dependencies unless they provide clear, justified value. Prefer standard library solutions when they exist.
+
+---
+
+## Build & Packaging
+
+- The crate type must be `cdylib` for dynamic library output.
+- Include a `build.rs` that calls `napi_build::setup()`.
+- Use `@napi-rs/cli` for building, creating npm directories, and publishing platform-specific packages.
+- Follow the NAPI-rs distribution model: one root npm package with `optionalDependencies` pointing to platform-specific binary packages.
+- TypeScript type definitions (`.d.ts`) are auto-generated by NAPI-rs — do not hand-write them.
+
+---
+
+## Production Quality Requirements
+
+- **No undefined behavior** — ever.
+- **Defensive programming**: validate inputs at system boundaries (function entry points in the interop layer). Do not over-validate internal code.
+- **Graceful degradation**: when the OS or environment is in an unexpected state, return a structured error rather than crashing.
+- **Memory safety**: enforced by Rust's type system. Do not circumvent it.
+- **No resource leaks**: all OS handles, buffers, and allocated memory must be properly released.
+- **Stable under load**: multiple concurrent capture calls must not corrupt state or crash.
+
+---
+
+## Extensibility
+
+The architecture must support future additions without requiring structural changes. Current extension points:
+
+- **Window capture** — `xcap` already provides `Window::all()` and `window.capture_image()`.
+- **Region capture** — `xcap` supports `monitor.capture_region(x, y, width, height)`.
+- **Video recording** — `xcap` provides `monitor.video_recorder()` (marked WIP upstream).
+- **Encoding pipelines** — PNG is the default output format. JPEG, WebP, AVIF, and other formats can be added by extending the utility layer; the encoding format is selected via an optional parameter passed through the interop layer.
+- **Streaming APIs** — future streaming support can be added via NAPI-rs `ThreadsafeFunction`.
+- **Save to disk** — optional file output can be added as a convenience API.
+- **Additional metadata** — expose more monitor properties as needed (color depth, HDR support, etc.).
+- **Base64 encoding** — an option to return screenshots as Base64 strings instead of Buffers (even though the value must be converted from a Rust `String` to a JavaScript `string` at the FFI boundary, Base64 encoding is handled efficiently on the Rust side).
+
+When extending, add new modules rather than modifying existing ones. Follow the existing layer separation.
+
+---
+
+### Documentation
+
+- All functions (especially public ones) must have doc comments that describe their behavior, parameters, return values, and possible errors.
+- Document the error enum with clear descriptions of each variant and when it is used.
+- Document any `unsafe` code with detailed safety invariants.
+- The README.md should provide usage examples, installation instructions, and a high-level overview of the API.
+- Internal documentation should explain the architecture and design decisions where non-obvious.
+- All documentation must be clear, concise, and free of jargon.
+- Document platform-specific behavior and differences clearly.
+- Use examples in documentation to illustrate common usage patterns and edge cases.
+- Documentation must be kept up-to-date with code changes. Outdated documentation is worse than no documentation.
+- Document the expected behavior in error scenarios (e.g., what happens if permissions are denied on macOS? What error is thrown if an invalid monitor ID is used?).
+- Documentation must be ready to generate API reference docs using `cargo doc` without additional manual editing.
+
+---
+
+## What to Avoid
+
+- **Do not add `unwrap()` or `expect()` in any non-test code.**
+- **Do not introduce `unsafe` without documented justification and a `// SAFETY:` comment.**
+- **Do not put NAPI types in the core or domain layer.**
+- **Do not put `cfg` attributes in the interop layer.**
+- **Do not block the Node.js event loop.**
+- **Do not return raw `xcap` types to JavaScript** — always map through domain types.
+- **Do not duplicate logic** — extract into reusable helpers.
+- **Do not add features or abstractions beyond what is needed for the current task.**
+- **Do not hand-write `.d.ts` files** — NAPI-rs generates them.
+- **Do not swallow errors silently** — every error must be surfaced or explicitly logged.
+- **Do not use `println!` or `eprintln!` for logging** — use the `log` crate.
+
+---
+
+### This file (AGENTS.md)
+
+- This file is a living document that captures the architectural vision, coding standards, and design principles for the xshot project.
+- It is intended to guide contributors and maintainers in writing high-quality, consistent code that adheres to the project's goals and constraints.
+- This file should be updated whenever there are significant changes to the architecture, coding standards, or design principles. It serves as the single source of truth for how the project should be structured and developed.
