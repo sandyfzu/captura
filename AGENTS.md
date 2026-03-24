@@ -20,7 +20,7 @@ All three platforms are first-class citizens. The public API must behave consist
 
 ## Architecture
 
-The codebase is organized into four clearly separated layers. Do not mix concerns across layers.
+The codebase is a workspace organized into four clearly separated layers (crates). Do not mix concerns across layers.
 
 ### Core Layer (Rust / xcap abstraction)
 
@@ -48,6 +48,13 @@ The codebase is organized into four clearly separated layers. Do not mix concern
 
 - Shared helpers: error conversion, image encoding, buffer manipulation, cross-platform normalization logic.
 - Used by multiple layers; must not depend on NAPI types.
+
+---
+
+## Workspace rules
+
+- Each layer is a separate crate in the workspace.
+- All dependencies must be declared in the main `Cargo.toml` workspace file and pulled into individual crates (`Cargo.toml`) from the main one as needed.
 
 ---
 
@@ -340,7 +347,7 @@ When extending, add new modules rather than modifying existing ones. Follow the 
 
 ---
 
-### This file (AGENTS.md)
+## This file (AGENTS.md)
 
 - This file is a living document that captures the architectural vision, coding standards, and design principles for the xshot project.
 - It is intended to guide contributors and maintainers in writing high-quality, consistent code that adheres to the project's goals and constraints.
