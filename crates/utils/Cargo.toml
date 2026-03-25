@@ -1,0 +1,13 @@
+[package]
+name = "xshot-utils"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Shared utilities for xshot — encoding, error conversion, and cross-platform helpers"
+
+[dependencies]
+xshot-domain = { workspace = true }
+thiserror = { workspace = true }
+image = { workspace = true }
+log = { workspace = true }

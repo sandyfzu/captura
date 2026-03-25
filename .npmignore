@@ -1,0 +1,18 @@
+# Exclude build artifacts and source from npm package.
+# Platform-specific binaries are distributed via separate @xshot/* packages.
+
+target/
+crates/
+.github/
+.git/
+npm/
+
+Cargo.toml
+Cargo.lock
+rustfmt.toml
+AGENTS.md
+.gitignore
+.npmignore
+
+*.rs
+build.rs
