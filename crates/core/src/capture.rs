@@ -43,7 +43,7 @@
 
 use log::debug;
 use xshot_domain::{Bounds, CaptureResult, ImageFormat, MonitorInfo, Screenshot, Size, XshotError};
-use xshot_utils::encode_rgba_to_png;
+use xshot_utils::encode_rgba;
 
 /// Converts xcap's reported geometry to physical pixels.
 ///
@@ -294,17 +294,22 @@ pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
     .map_err(|e| XshotError::internal(format!("monitor lookup task panicked: {e}")))?
 }
 
-/// Captures a PNG-encoded screenshot of the monitor with the given `id`.
+/// Captures an encoded screenshot of the monitor with the given `id`.
 ///
-/// The capture and PNG encoding both run on a blocking thread.
+/// The capture and image encoding both run on a blocking thread.
+///
+/// # Arguments
+///
+/// * `id` — OS-assigned monitor identifier.
+/// * `format` — Target encoding format (e.g. PNG, JPEG, WebP, AVIF).
 ///
 /// # Errors
 ///
 /// - [`XshotError::MonitorNotFound`] if no monitor matches the `id`.
 /// - [`XshotError::CaptureFailed`] if the OS capture call fails.
-/// - [`XshotError::EncodingError`] if PNG encoding fails.
+/// - [`XshotError::EncodingError`] if image encoding fails.
 /// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn capture_monitor(id: u32) -> Result<CaptureResult, XshotError> {
+pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResult, XshotError> {
     tokio::task::spawn_blocking(move || {
         let monitors = xcap::Monitor::all().map_err(|e| {
             XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
@@ -326,10 +331,10 @@ pub async fn capture_monitor(id: u32) -> Result<CaptureResult, XshotError> {
             .capture_image()
             .map_err(|e| XshotError::capture_failed(format!("monitor {id}: {e}")))?;
 
-        let data = encode_rgba_to_png(image.as_raw(), image.width(), image.height())?;
+        let data = encode_rgba(image.as_raw(), image.width(), image.height(), format)?;
 
         debug!(
-            "captured monitor {id}: {}\u{00d7}{} \u{2192} {} bytes PNG",
+            "captured monitor {id}: {}\u{00d7}{} \u{2192} {} bytes {format}",
             image.width(),
             image.height(),
             data.len(),
@@ -342,7 +347,7 @@ pub async fn capture_monitor(id: u32) -> Result<CaptureResult, XshotError> {
                     width: image.width(),
                     height: image.height(),
                 },
-                format: ImageFormat::Png,
+                format,
                 data,
             },
         })
@@ -351,19 +356,23 @@ pub async fn capture_monitor(id: u32) -> Result<CaptureResult, XshotError> {
     .map_err(|e| XshotError::internal(format!("capture task panicked: {e}")))?
 }
 
-/// Captures PNG-encoded screenshots of **every** connected monitor.
+/// Captures encoded screenshots of **every** connected monitor.
 ///
 /// Each monitor is captured sequentially on a single blocking thread to
 /// minimise contention on the OS capture subsystem.
+///
+/// # Arguments
+///
+/// * `format` — Target encoding format applied to all captures.
 ///
 /// # Errors
 ///
 /// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
 /// - [`XshotError::CaptureFailed`] if any individual capture fails.
-/// - [`XshotError::EncodingError`] if any PNG encoding fails.
+/// - [`XshotError::EncodingError`] if image encoding fails.
 /// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn capture_all_monitors() -> Result<Vec<CaptureResult>, XshotError> {
-    tokio::task::spawn_blocking(|| {
+pub async fn capture_all_monitors(format: ImageFormat) -> Result<Vec<CaptureResult>, XshotError> {
+    tokio::task::spawn_blocking(move || {
         let monitors = xcap::Monitor::all().map_err(|e| {
             XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
         })?;
@@ -380,10 +389,10 @@ pub async fn capture_all_monitors() -> Result<Vec<CaptureResult>, XshotError> {
                 .capture_image()
                 .map_err(|e| XshotError::capture_failed(format!("monitor {mid}: {e}")))?;
 
-            let data = encode_rgba_to_png(image.as_raw(), image.width(), image.height())?;
+            let data = encode_rgba(image.as_raw(), image.width(), image.height(), format)?;
 
             debug!(
-                "captured monitor {mid}: {}\u{00d7}{} \u{2192} {} bytes PNG",
+                "captured monitor {mid}: {}\u{00d7}{} \u{2192} {} bytes {format}",
                 image.width(),
                 image.height(),
                 data.len(),
@@ -396,7 +405,7 @@ pub async fn capture_all_monitors() -> Result<Vec<CaptureResult>, XshotError> {
                         width: image.width(),
                         height: image.height(),
                     },
-                    format: ImageFormat::Png,
+                    format,
                     data,
                 },
             });

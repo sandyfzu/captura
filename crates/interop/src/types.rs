@@ -159,22 +159,26 @@ impl From<Size> for JsSize {
 /// The encoding format of a captured screenshot.
 ///
 /// Indicates which image codec was used to encode `Screenshot.data`.
+/// All formats use default encoder settings. If you need fine-grained
+/// control over encoding parameters (e.g. JPEG quality, AVIF speed),
+/// capture as `"Png"` (lossless, pixel-perfect) and convert using your
+/// preferred image processing library.
 ///
 /// | Value | MIME type | Notes |
 /// |-------|-----------|-------|
 /// | `"Png"` | `image/png` | Default. Lossless, pixel-perfect. |
-/// | `"Jpeg"` | `image/jpeg` | Lossy. Smaller files. *(planned)* |
-/// | `"WebP"` | `image/webp` | Lossy/lossless. Good compression. *(planned)* |
-/// | `"Avif"` | `image/avif` | Best compression. *(planned)* |
+/// | `"Jpeg"` | `image/jpeg` | Lossy, default quality. |
+/// | `"WebP"` | `image/webp` | Lossless only. |
+/// | `"Avif"` | `image/avif` | Default speed and quality. |
 #[napi(string_enum, js_name = "ImageFormat")]
 pub enum JsImageFormat {
     /// PNG — lossless, pixel-perfect. Default format.
     Png,
-    /// JPEG — lossy compression.
+    /// JPEG — lossy compression, default quality.
     Jpeg,
-    /// WebP — lossy or lossless.
+    /// WebP — lossless encoding only.
     WebP,
-    /// AVIF — lossy or lossless, best compression.
+    /// AVIF — default speed and quality settings.
     Avif,
 }
 
@@ -189,11 +193,32 @@ impl From<ImageFormat> for JsImageFormat {
     }
 }
 
+impl From<JsImageFormat> for ImageFormat {
+    fn from(f: JsImageFormat) -> Self {
+        match f {
+            JsImageFormat::Png => Self::Png,
+            JsImageFormat::Jpeg => Self::Jpeg,
+            JsImageFormat::WebP => Self::WebP,
+            JsImageFormat::Avif => Self::Avif,
+        }
+    }
+}
+
 /// A captured screenshot — the image payload with its dimensions and format.
 ///
 /// `data` contains encoded image bytes in the format indicated by `format`
 /// (PNG by default). It can be written to disk, served over HTTP, or passed
 /// directly to any image library without additional processing.
+///
+/// All formats use default encoder settings:
+///
+/// - **PNG**: lossless, default compression.
+/// - **JPEG**: lossy, default quality.
+/// - **WebP**: lossless encoding only.
+/// - **AVIF**: default speed and quality.
+///
+/// If you need custom encoding parameters, capture as PNG (lossless) and
+/// re-encode with your preferred image processing library.
 ///
 /// `size` reflects the **actual** pixel dimensions of the encoded image.
 /// Use `size.width` and `size.height` to know the image dimensions without

@@ -117,19 +117,18 @@ pub struct Size {
 /// Indicates how `Screenshot::data` is encoded. This is a closed set of
 /// formats that xshot supports — all backed by the [`image`] crate.
 ///
-/// # Currently supported
+/// All formats use default encoder settings. For fine-grained control over
+/// encoding parameters (e.g. JPEG quality, AVIF speed), capture as PNG
+/// (lossless) and re-encode externally.
+///
+/// # Supported formats
 ///
 /// | Variant | MIME type | Notes |
 /// |---------|-----------|-------|
 /// | `Png` | `image/png` | Default. Lossless, best for pixel-perfect captures. |
-///
-/// # Planned
-///
-/// | Variant | MIME type | Notes |
-/// |---------|-----------|-------|
-/// | `Jpeg` | `image/jpeg` | Lossy. Smaller files, configurable quality. |
-/// | `WebP` | `image/webp` | Lossy/lossless. Good compression, wide browser support. |
-/// | `Avif` | `image/avif` | Lossy/lossless. Best compression, growing support. |
+/// | `Jpeg` | `image/jpeg` | Lossy. Default quality (75). |
+/// | `WebP` | `image/webp` | Lossless only (the `image` crate does not support lossy WebP). |
+/// | `Avif` | `image/avif` | Default speed and quality settings. |
 ///
 /// # Sources
 ///
@@ -141,11 +140,11 @@ pub struct Size {
 pub enum ImageFormat {
     /// PNG — lossless, pixel-perfect. Default format.
     Png,
-    /// JPEG — lossy compression. Not yet implemented.
+    /// JPEG — lossy compression, default quality.
     Jpeg,
-    /// WebP — lossy or lossless. Not yet implemented.
+    /// WebP — lossless encoding only.
     WebP,
-    /// AVIF — lossy or lossless, best compression. Not yet implemented.
+    /// AVIF — default speed and quality settings.
     Avif,
 }
 

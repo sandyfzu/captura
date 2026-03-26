@@ -18,7 +18,8 @@ mod types;
 
 use napi_derive::napi;
 
-use types::{JsCaptureResult, JsMonitor};
+use types::{JsCaptureResult, JsImageFormat, JsMonitor};
+use xshot_domain::ImageFormat;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -50,33 +51,51 @@ pub async fn get_monitor_by_id(id: u32) -> napi::Result<JsMonitor> {
     Ok(JsMonitor::from(info))
 }
 
-/// Captures a PNG-encoded screenshot of the monitor with the given `id`.
+/// Captures an encoded screenshot of the monitor with the given `id`.
 ///
 /// Returns a `CaptureResult` containing monitor metadata and a `Screenshot`
-/// with the image dimensions and PNG-encoded `Buffer`.
+/// with the image dimensions and encoded `Buffer`.
+///
+/// The optional `format` parameter selects the encoding. When omitted it
+/// defaults to PNG (lossless, pixel-perfect). All formats use default
+/// encoder settings — if you need fine-grained control over encoding
+/// parameters, capture as PNG and re-encode with your preferred image
+/// processing library.
 ///
 /// ```ts
+/// // Default (PNG)
 /// const result: CaptureResult = await captureMonitor(1)
-/// result.screenshot.size   // { width: 2560, height: 1600 }
-/// result.screenshot.data   // <Buffer 89 50 4e 47 ...>
-/// result.monitor.name      // "Built-in Retina Display"
+///
+/// // Explicit format
+/// const jpg: CaptureResult = await captureMonitor(1, 'Jpeg')
 /// ```
 #[napi]
-pub async fn capture_monitor(id: u32) -> napi::Result<JsCaptureResult> {
-    let result = xshot_core::capture_monitor(id)
+pub async fn capture_monitor(
+    id: u32,
+    format: Option<JsImageFormat>,
+) -> napi::Result<JsCaptureResult> {
+    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let result = xshot_core::capture_monitor(id, fmt)
         .await
         .map_err(error::to_napi)?;
     Ok(JsCaptureResult::from(result))
 }
 
-/// Captures PNG-encoded screenshots of every connected monitor.
+/// Captures encoded screenshots of every connected monitor.
+///
+/// The optional `format` parameter selects the encoding applied to all
+/// captures. When omitted it defaults to PNG.
 ///
 /// ```ts
 /// const results: CaptureResult[] = await captureAllMonitors()
+/// const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
 /// ```
 #[napi]
-pub async fn capture_all_monitors() -> napi::Result<Vec<JsCaptureResult>> {
-    let results = xshot_core::capture_all_monitors()
+pub async fn capture_all_monitors(
+    format: Option<JsImageFormat>,
+) -> napi::Result<Vec<JsCaptureResult>> {
+    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let results = xshot_core::capture_all_monitors(fmt)
         .await
         .map_err(error::to_napi)?;
     Ok(results.into_iter().map(JsCaptureResult::from).collect())

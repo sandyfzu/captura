@@ -19,28 +19,39 @@ export interface Bounds {
 }
 
 /**
- * Captures PNG-encoded screenshots of every connected monitor.
+ * Captures encoded screenshots of every connected monitor.
+ *
+ * The optional `format` parameter selects the encoding applied to all
+ * captures. When omitted it defaults to PNG.
  *
  * ```ts
  * const results: CaptureResult[] = await captureAllMonitors()
+ * const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
  * ```
  */
-export declare function captureAllMonitors(): Promise<Array<CaptureResult>>
+export declare function captureAllMonitors(format?: ImageFormat | undefined | null): Promise<Array<CaptureResult>>
 
 /**
- * Captures a PNG-encoded screenshot of the monitor with the given `id`.
+ * Captures an encoded screenshot of the monitor with the given `id`.
  *
  * Returns a `CaptureResult` containing monitor metadata and a `Screenshot`
- * with the image dimensions and PNG-encoded `Buffer`.
+ * with the image dimensions and encoded `Buffer`.
+ *
+ * The optional `format` parameter selects the encoding. When omitted it
+ * defaults to PNG (lossless, pixel-perfect). All formats use default
+ * encoder settings — if you need fine-grained control over encoding
+ * parameters, capture as PNG and re-encode with your preferred image
+ * processing library.
  *
  * ```ts
+ * // Default (PNG)
  * const result: CaptureResult = await captureMonitor(1)
- * result.screenshot.size   // { width: 2560, height: 1600 }
- * result.screenshot.data   // <Buffer 89 50 4e 47 ...>
- * result.monitor.name      // "Built-in Retina Display"
+ *
+ * // Explicit format
+ * const jpg: CaptureResult = await captureMonitor(1, 'Jpeg')
  * ```
  */
-export declare function captureMonitor(id: number): Promise<CaptureResult>
+export declare function captureMonitor(id: number, format?: ImageFormat | undefined | null): Promise<CaptureResult>
 
 /**
  * The result of a capture operation — pairs monitor metadata with the
@@ -86,22 +97,26 @@ export declare function getMonitors(): Promise<Array<Monitor>>
  * The encoding format of a captured screenshot.
  *
  * Indicates which image codec was used to encode `Screenshot.data`.
+ * All formats use default encoder settings. If you need fine-grained
+ * control over encoding parameters (e.g. JPEG quality, AVIF speed),
+ * capture as `"Png"` (lossless, pixel-perfect) and convert using your
+ * preferred image processing library.
  *
  * | Value | MIME type | Notes |
  * |-------|-----------|-------|
  * | `"Png"` | `image/png` | Default. Lossless, pixel-perfect. |
- * | `"Jpeg"` | `image/jpeg` | Lossy. Smaller files. *(planned)* |
- * | `"WebP"` | `image/webp` | Lossy/lossless. Good compression. *(planned)* |
- * | `"Avif"` | `image/avif` | Best compression. *(planned)* |
+ * | `"Jpeg"` | `image/jpeg` | Lossy, default quality. |
+ * | `"WebP"` | `image/webp` | Lossless only. |
+ * | `"Avif"` | `image/avif` | Default speed and quality. |
  */
 export declare const enum ImageFormat {
   /** PNG — lossless, pixel-perfect. Default format. */
   Png = 'Png',
-  /** JPEG — lossy compression. */
+  /** JPEG — lossy compression, default quality. */
   Jpeg = 'Jpeg',
-  /** WebP — lossy or lossless. */
+  /** WebP — lossless encoding only. */
   WebP = 'WebP',
-  /** AVIF — lossy or lossless, best compression. */
+  /** AVIF — default speed and quality settings. */
   Avif = 'Avif'
 }
 
@@ -200,6 +215,16 @@ export interface Monitor {
  * `data` contains encoded image bytes in the format indicated by `format`
  * (PNG by default). It can be written to disk, served over HTTP, or passed
  * directly to any image library without additional processing.
+ *
+ * All formats use default encoder settings:
+ *
+ * - **PNG**: lossless, default compression.
+ * - **JPEG**: lossy, default quality.
+ * - **WebP**: lossless encoding only.
+ * - **AVIF**: default speed and quality.
+ *
+ * If you need custom encoding parameters, capture as PNG (lossless) and
+ * re-encode with your preferred image processing library.
  *
  * `size` reflects the **actual** pixel dimensions of the encoded image.
  * Use `size.width` and `size.height` to know the image dimensions without

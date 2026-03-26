@@ -12,4 +12,4 @@
 
 mod encoding;
 
-pub use encoding::encode_rgba_to_png;
+pub use encoding::encode_rgba;

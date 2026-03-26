@@ -175,9 +175,11 @@ Additional categories should be added when they make semantic sense for the doma
 const monitors: Monitor[] = await getMonitors()
 const monitor: Monitor = await getMonitorById(id) // throws MONITOR_NOT_FOUND if id does not exist
 
-// Screen capture
-const screenshot: Buffer = await captureMonitor(id)         // PNG-encoded Buffer
-const screenshots: Screenshot[] = await captureAllMonitors() // one entry per monitor
+// Screen capture (PNG by default, optional format parameter)
+const result: CaptureResult = await captureMonitor(id)            // PNG
+const jpgResult: CaptureResult = await captureMonitor(id, 'Jpeg') // JPEG
+const results: CaptureResult[] = await captureAllMonitors()       // all monitors, PNG
+const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
 ```
 
 ### Data Structures
@@ -188,9 +190,15 @@ const screenshots: Screenshot[] = await captureAllMonitors() // one entry per mo
 - `Screenshot` pairs a monitor's metadata with its captured image:
 
 ```ts
-interface Screenshot {
+interface CaptureResult {
   monitor: Monitor
-  data: Buffer // PNG-encoded by default
+  screenshot: Screenshot
+}
+
+interface Screenshot {
+  size: Size
+  format: ImageFormat  // 'Png' | 'Jpeg' | 'WebP' | 'Avif'
+  data: Buffer         // Encoded in the specified format
 }
 ```
 
@@ -219,7 +227,7 @@ interface Monitor {
 - Use `Buffer` (via NAPI-rs `Buffer` type) for returning image data to JavaScript.
 - **Image buffers returned to JavaScript are encoded (e.g., PNG by default)**, not raw RGBA pixel data. A Node.js `Buffer` containing raw RGBA is not self-describing — the consumer would need out-of-band knowledge of dimensions and pixel format to use it. An encoded buffer (PNG) is immediately useful: it can be written to disk, served over HTTP, or passed to any image library without additional processing.
 - Encoding is performed on the Rust side using the `image` crate (already a transitive dependency via `xcap`) before transferring ownership to JavaScript.
-- Other encoding format options (JPEG, WebP, AVIF, etc.) should be supported via an optional parameter and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic.
+- Supported encoding formats (PNG, JPEG, WebP, AVIF) are selected via an optional parameter (PNG default) and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic. All formats use default encoder settings — WebP is lossless only.
 - Avoid unnecessary memory copies. Prefer zero-copy transfer where safe and practical.
 - Large image buffers must not be cloned unnecessarily — encode once on the Rust side and transfer ownership to JavaScript.
 - Be mindful of encoded buffer sizes, especially for high-DPI monitors (source RGBA is width × height × 4 bytes before encoding).
@@ -301,7 +309,7 @@ The architecture must support future additions without requiring structural chan
 - **Window capture** — `xcap` already provides `Window::all()` and `window.capture_image()`.
 - **Region capture** — `xcap` supports `monitor.capture_region(x, y, width, height)`.
 - **Video recording** — `xcap` provides `monitor.video_recorder()` (marked WIP upstream).
-- **Encoding pipelines** — PNG is the default output format. JPEG, WebP, AVIF, and other formats can be added by extending the utility layer; the encoding format is selected via an optional parameter passed through the interop layer.
+- **Encoding pipelines** — PNG (default), JPEG, WebP (lossless only), and AVIF are supported. All use default encoder settings. Additional formats or fine-grained configuration can be added by extending the utility layer.
 - **Streaming APIs** — future streaming support can be added via NAPI-rs `ThreadsafeFunction`.
 - **Save to disk** — optional file output can be added as a convenience API.
 - **Additional metadata** — expose more monitor properties as needed (color depth, HDR support, etc.).
