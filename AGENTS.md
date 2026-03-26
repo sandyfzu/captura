@@ -165,21 +165,26 @@ Additional categories should be added when they make semantic sense for the doma
 ### Naming Conventions
 
 - Use camelCase for all public function names (NAPI-rs converts Rust snake_case automatically).
-- Use clear, descriptive names: `getMonitors`, `getMonitorById`, `captureMonitor`, `captureAllMonitors`.
+- Use clear, descriptive names: `getMonitors`, `getMonitorById`, `captureMonitor`, `captureAllMonitors`, `captureMonitorBase64`, `captureAllMonitorsBase64`.
 - Avoid abbreviations unless universally understood.
 
-### API Shape (Conceptual)
+### API Shape
 
 ```ts
 // Monitor management
 const monitors: Monitor[] = await getMonitors()
 const monitor: Monitor = await getMonitorById(id) // throws MONITOR_NOT_FOUND if id does not exist
 
-// Screen capture (PNG by default, optional format parameter)
+// Screen capture — Buffer output (PNG by default, optional format parameter)
 const result: CaptureResult = await captureMonitor(id)            // PNG
 const jpgResult: CaptureResult = await captureMonitor(id, 'Jpeg') // JPEG
 const results: CaptureResult[] = await captureAllMonitors()       // all monitors, PNG
 const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
+
+// Screen capture — Base64 string output (same format selection)
+const b64Result: Base64CaptureResult = await captureMonitorBase64(id)       // PNG
+const b64Jpg: Base64CaptureResult = await captureMonitorBase64(id, 'Jpeg')  // JPEG
+const b64All: Base64CaptureResult[] = await captureAllMonitorsBase64()      // all monitors
 ```
 
 ### Data Structures
@@ -187,7 +192,7 @@ const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
 - Return strongly typed interfaces/objects.
 - No ambiguous return values — prefer throwing a structured error over returning `null` or `undefined`. Only return `null` when absence is a valid, expected state (e.g., an optional field with no value on a given platform).
 - `getMonitorById` must throw a `MONITOR_NOT_FOUND` error when the ID does not exist — it must never return `null`.
-- `Screenshot` pairs a monitor's metadata with its captured image:
+- `CaptureResult` pairs a monitor's metadata with its captured image. `Base64CaptureResult` is identical but carries a Base64 string instead of a `Buffer`:
 
 ```ts
 interface CaptureResult {
@@ -198,25 +203,47 @@ interface CaptureResult {
 interface Screenshot {
   size: Size
   format: ImageFormat  // 'Png' | 'Jpeg' | 'WebP' | 'Avif'
-  data: Buffer         // Encoded in the specified format
+  data: Buffer         // Encoded image bytes
+}
+
+interface Base64CaptureResult {
+  monitor: Monitor
+  screenshot: Base64Screenshot
+}
+
+interface Base64Screenshot {
+  size: Size
+  format: ImageFormat  // 'Png' | 'Jpeg' | 'WebP' | 'Avif'
+  data: string         // RFC 4648 Base64-encoded image
 }
 ```
 
-- Monitor metadata should be a flat, self-descriptive object:
+- Monitor metadata exposes both physical and logical geometry via nested `Bounds` objects:
 
 ```ts
 interface Monitor {
   id: number
   name: string
-  x: number
-  y: number
-  width: number
-  height: number
+  friendlyName: string
+  physical: Bounds       // Geometry in physical pixels (matches screenshot dimensions)
+  logical: Bounds        // Geometry in logical / DIP units
   rotation: number
   scaleFactor: number
   frequency: number
   isPrimary: boolean
   isBuiltin: boolean
+}
+
+interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface Size {
+  width: number
+  height: number
 }
 ```
 
@@ -224,9 +251,10 @@ interface Monitor {
 
 ## Memory & Data Handling
 
-- Use `Buffer` (via NAPI-rs `Buffer` type) for returning image data to JavaScript.
+- Use `Buffer` (via NAPI-rs `Buffer` type) for returning image data to JavaScript, or `string` for Base64-encoded output.
 - **Image buffers returned to JavaScript are encoded (e.g., PNG by default)**, not raw RGBA pixel data. A Node.js `Buffer` containing raw RGBA is not self-describing — the consumer would need out-of-band knowledge of dimensions and pixel format to use it. An encoded buffer (PNG) is immediately useful: it can be written to disk, served over HTTP, or passed to any image library without additional processing.
-- Encoding is performed on the Rust side using the `image` crate (already a transitive dependency via `xcap`) before transferring ownership to JavaScript.
+- **Base64 variants** (`captureMonitorBase64`, `captureAllMonitorsBase64`) return the same encoded image data as an RFC 4648 Base64 string instead of a `Buffer`. Base64 encoding is performed on the Rust side using the `base64` crate before crossing the FFI boundary.
+- Encoding is performed on the Rust side using the `image` crate (a direct dependency, also a transitive dependency via `xcap`) before transferring ownership to JavaScript.
 - Supported encoding formats (PNG, JPEG, WebP, AVIF) are selected via an optional parameter (PNG default) and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic. All formats use default encoder settings — WebP is lossless only.
 - Avoid unnecessary memory copies. Prefer zero-copy transfer where safe and practical.
 - Large image buffers must not be cloned unnecessarily — encode once on the Rust side and transfer ownership to JavaScript.
@@ -272,7 +300,8 @@ interface Monitor {
   - `napi-build` — build script helper
   - `tokio` — async runtime (with the `async` feature in napi)
   - `thiserror` — ergonomic error types
-  - `image` — image encoding (transitive dependency via `xcap`; do not add as a direct dependency unless encoding utilities require types or functions from it that `xcap` does not re-export)
+  - `image` — image encoding (also a transitive dependency via `xcap`; added as a direct dependency because the utility layer uses encoder types — `PngEncoder`, `JpegEncoder`, `WebPEncoder`, `AvifEncoder` — and the `ImageEncoder` trait that `xcap` does not re-export)
+  - `base64` — RFC 4648 Base64 encoding for the Base64 screenshot API
 - Node.js tooling:
   - `@napi-rs/cli` — build and publish toolchain
 - Do not add dependencies unless they provide clear, justified value. Prefer standard library solutions when they exist.
@@ -304,16 +333,21 @@ interface Monitor {
 
 ## Extensibility
 
-The architecture must support future additions without requiring structural changes. Current extension points:
+The architecture must support future additions without requiring structural changes.
+
+### Implemented features
+
+- **Multi-format encoding** — PNG (default), JPEG, WebP (lossless only), and AVIF are supported via an optional `format` parameter on every capture function. All use default encoder settings. Additional formats or fine-grained configuration can be added by extending the utility layer.
+- **Base64 encoding** — `captureMonitorBase64` and `captureAllMonitorsBase64` return screenshots as RFC 4648 Base64 strings instead of Buffers. Base64 encoding is performed on the Rust side using the `base64` crate.
+
+### Future extension points
 
 - **Window capture** — `xcap` already provides `Window::all()` and `window.capture_image()`.
 - **Region capture** — `xcap` supports `monitor.capture_region(x, y, width, height)`.
 - **Video recording** — `xcap` provides `monitor.video_recorder()` (marked WIP upstream).
-- **Encoding pipelines** — PNG (default), JPEG, WebP (lossless only), and AVIF are supported. All use default encoder settings. Additional formats or fine-grained configuration can be added by extending the utility layer.
 - **Streaming APIs** — future streaming support can be added via NAPI-rs `ThreadsafeFunction`.
 - **Save to disk** — optional file output can be added as a convenience API.
 - **Additional metadata** — expose more monitor properties as needed (color depth, HDR support, etc.).
-- **Base64 encoding** — an option to return screenshots as Base64 strings instead of Buffers (even though the value must be converted from a Rust `String` to a JavaScript `string` at the FFI boundary, Base64 encoding is handled efficiently on the Rust side).
 
 When extending, add new modules rather than modifying existing ones. Follow the existing layer separation.
 
