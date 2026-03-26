@@ -106,7 +106,7 @@ export declare const enum ImageFormat {
 }
 
 /**
- * JavaScript-facing monitor metadata.
+ * Monitor metadata.
  *
  * A snapshot of monitor state at the time it was queried. This is a plain
  * data object — it does **not** hold a live reference to the OS resource.

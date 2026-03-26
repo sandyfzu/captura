@@ -1,7 +1,7 @@
 {
   "name": "xshot",
   "version": "0.0.0",
-  "description": "Cross-platform screen capture for Node.js — a production-grade Rust native module wrapping xcap via napi-rs, with a fully typed async TypeScript API",
+  "description": "Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API",
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
