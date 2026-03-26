@@ -9,3 +9,9 @@
 //! - Models are plain Rust structs; they do not derive or implement NAPI traits.
 //! - Contains business logic independent of any transport or binding mechanism.
 //! - Error types use `thiserror` for ergonomic error definitions.
+
+mod error;
+mod monitor;
+
+pub use error::{XshotError, XshotErrorCode};
+pub use monitor::{MonitorInfo, Screenshot};

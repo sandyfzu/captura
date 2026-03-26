@@ -9,3 +9,7 @@
 //! - Image encoding (PNG, JPEG, WebP, AVIF, etc.) is handled entirely here.
 //! - The interop layer passes encoding format options through; it does not
 //!   contain encoding logic.
+
+mod encoding;
+
+pub use encoding::encode_rgba_to_png;
