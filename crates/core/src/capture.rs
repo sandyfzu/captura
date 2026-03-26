@@ -42,7 +42,7 @@
 //! - `tokio::task::spawn_blocking` — offloads synchronous work
 
 use log::debug;
-use xshot_domain::{Bounds, MonitorInfo, Screenshot, XshotError};
+use xshot_domain::{Bounds, CaptureResult, ImageFormat, MonitorInfo, Screenshot, Size, XshotError};
 use xshot_utils::encode_rgba_to_png;
 
 /// Converts xcap's reported geometry to physical pixels.
@@ -304,7 +304,7 @@ pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
 /// - [`XshotError::CaptureFailed`] if the OS capture call fails.
 /// - [`XshotError::EncodingError`] if PNG encoding fails.
 /// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn capture_monitor(id: u32) -> Result<Screenshot, XshotError> {
+pub async fn capture_monitor(id: u32) -> Result<CaptureResult, XshotError> {
     tokio::task::spawn_blocking(move || {
         let monitors = xcap::Monitor::all().map_err(|e| {
             XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
@@ -335,9 +335,16 @@ pub async fn capture_monitor(id: u32) -> Result<Screenshot, XshotError> {
             data.len(),
         );
 
-        Ok(Screenshot {
+        Ok(CaptureResult {
             monitor: info,
-            data,
+            screenshot: Screenshot {
+                size: Size {
+                    width: image.width(),
+                    height: image.height(),
+                },
+                format: ImageFormat::Png,
+                data,
+            },
         })
     })
     .await
@@ -355,7 +362,7 @@ pub async fn capture_monitor(id: u32) -> Result<Screenshot, XshotError> {
 /// - [`XshotError::CaptureFailed`] if any individual capture fails.
 /// - [`XshotError::EncodingError`] if any PNG encoding fails.
 /// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn capture_all_monitors() -> Result<Vec<Screenshot>, XshotError> {
+pub async fn capture_all_monitors() -> Result<Vec<CaptureResult>, XshotError> {
     tokio::task::spawn_blocking(|| {
         let monitors = xcap::Monitor::all().map_err(|e| {
             XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
@@ -363,7 +370,7 @@ pub async fn capture_all_monitors() -> Result<Vec<Screenshot>, XshotError> {
 
         debug!("capturing all {} monitor(s)", monitors.len());
 
-        let mut screenshots = Vec::with_capacity(monitors.len());
+        let mut results = Vec::with_capacity(monitors.len());
 
         for m in &monitors {
             let info = monitor_info(m)?;
@@ -382,14 +389,21 @@ pub async fn capture_all_monitors() -> Result<Vec<Screenshot>, XshotError> {
                 data.len(),
             );
 
-            screenshots.push(Screenshot {
+            results.push(CaptureResult {
                 monitor: info,
-                data,
+                screenshot: Screenshot {
+                    size: Size {
+                        width: image.width(),
+                        height: image.height(),
+                    },
+                    format: ImageFormat::Png,
+                    data,
+                },
             });
         }
 
-        debug!("captured {} screenshot(s) total", screenshots.len());
-        Ok(screenshots)
+        debug!("captured {} screenshot(s) total", results.len());
+        Ok(results)
     })
     .await
     .map_err(|e| XshotError::internal(format!("capture-all task panicked: {e}")))?

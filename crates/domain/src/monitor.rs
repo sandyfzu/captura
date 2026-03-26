@@ -100,14 +100,130 @@ pub struct MonitorInfo {
     pub is_builtin: bool,
 }
 
-/// A captured screenshot paired with its source monitor metadata.
+/// Dimensions of an image in pixels.
 ///
-/// `data` contains encoded image bytes (PNG by default). The encoding is
-/// performed in the utility layer before this struct is constructed.
+/// Unlike [`Bounds`], this carries no position — it describes the *extent*
+/// of an image, not its placement within a coordinate space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Size {
+    /// Image width in pixels.
+    pub width: u32,
+    /// Image height in pixels.
+    pub height: u32,
+}
+
+/// The encoding format of a captured screenshot.
+///
+/// Indicates how `Screenshot::data` is encoded. This is a closed set of
+/// formats that xshot supports — all backed by the [`image`] crate.
+///
+/// # Currently supported
+///
+/// | Variant | MIME type | Notes |
+/// |---------|-----------|-------|
+/// | `Png` | `image/png` | Default. Lossless, best for pixel-perfect captures. |
+///
+/// # Planned
+///
+/// | Variant | MIME type | Notes |
+/// |---------|-----------|-------|
+/// | `Jpeg` | `image/jpeg` | Lossy. Smaller files, configurable quality. |
+/// | `WebP` | `image/webp` | Lossy/lossless. Good compression, wide browser support. |
+/// | `Avif` | `image/avif` | Lossy/lossless. Best compression, growing support. |
+///
+/// # Sources
+///
+/// - PNG: [`image::codecs::png::PngEncoder`](https://docs.rs/image/0.25/image/codecs/png/struct.PngEncoder.html)
+/// - JPEG: [`image::codecs::jpeg::JpegEncoder`](https://docs.rs/image/0.25/image/codecs/jpeg/struct.JpegEncoder.html)
+/// - WebP: [`image::codecs::webp::WebPEncoder`](https://docs.rs/image/0.25/image/codecs/webp/struct.WebPEncoder.html)
+/// - AVIF: [`image::codecs::avif::AvifEncoder`](https://docs.rs/image/0.25/image/codecs/avif/struct.AvifEncoder.html)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ImageFormat {
+    /// PNG — lossless, pixel-perfect. Default format.
+    Png,
+    /// JPEG — lossy compression. Not yet implemented.
+    Jpeg,
+    /// WebP — lossy or lossless. Not yet implemented.
+    WebP,
+    /// AVIF — lossy or lossless, best compression. Not yet implemented.
+    Avif,
+}
+
+impl ImageFormat {
+    /// Returns the IANA media type (MIME type) for this format.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use xshot_domain::ImageFormat;
+    /// assert_eq!(ImageFormat::Png.mime_type(), "image/png");
+    /// ```
+    pub const fn mime_type(self) -> &'static str {
+        match self {
+            Self::Png => "image/png",
+            Self::Jpeg => "image/jpeg",
+            Self::WebP => "image/webp",
+            Self::Avif => "image/avif",
+        }
+    }
+
+    /// Returns the conventional file extension (without the leading dot).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use xshot_domain::ImageFormat;
+    /// assert_eq!(ImageFormat::Png.extension(), "png");
+    /// ```
+    pub const fn extension(self) -> &'static str {
+        match self {
+            Self::Png => "png",
+            Self::Jpeg => "jpg",
+            Self::WebP => "webp",
+            Self::Avif => "avif",
+        }
+    }
+}
+
+impl std::fmt::Display for ImageFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Png => "PNG",
+            Self::Jpeg => "JPEG",
+            Self::WebP => "WebP",
+            Self::Avif => "AVIF",
+        })
+    }
+}
+
+/// A captured screenshot — the image payload with its dimensions and format.
+///
+/// `data` contains encoded image bytes in the format indicated by `format`
+/// (PNG by default). The encoding is performed in the utility layer before
+/// this struct is constructed.
+///
+/// `size` reflects the **actual** pixel dimensions of the encoded image.
+/// For a full-monitor capture this matches `MonitorInfo::physical`, but
+/// future region captures may produce smaller images.
 #[derive(Debug, Clone)]
 pub struct Screenshot {
-    /// The monitor from which this screenshot was taken.
-    pub monitor: MonitorInfo,
-    /// Encoded image bytes (e.g. PNG).
+    /// Actual pixel dimensions of the encoded image.
+    pub size: Size,
+    /// The encoding format of `data`.
+    pub format: ImageFormat,
+    /// Encoded image bytes in the format specified by `format`.
     pub data: Vec<u8>,
+}
+
+/// The result of a capture operation — pairs monitor metadata with a
+/// screenshot.
+///
+/// Returned by [`capture_monitor`](xshot_core::capture_monitor) and
+/// [`capture_all_monitors`](xshot_core::capture_all_monitors).
+#[derive(Debug, Clone)]
+pub struct CaptureResult {
+    /// Metadata of the monitor this screenshot was captured from.
+    pub monitor: MonitorInfo,
+    /// The captured image with its dimensions and encoded bytes.
+    pub screenshot: Screenshot,
 }

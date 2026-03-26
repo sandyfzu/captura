@@ -6,7 +6,7 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use xshot_domain::{Bounds, MonitorInfo, Screenshot};
+use xshot_domain::{Bounds, CaptureResult, ImageFormat, MonitorInfo, Screenshot, Size};
 
 /// A rectangular region in a 2D coordinate space.
 ///
@@ -134,26 +134,117 @@ impl From<MonitorInfo> for JsMonitor {
     }
 }
 
-/// JavaScript-facing screenshot result pairing monitor metadata with the
-/// captured image data.
+/// Image dimensions in pixels.
 ///
-/// The `data` buffer contains a **PNG-encoded** image by default. It can be
-/// written to disk, served over HTTP, or passed directly to any image
-/// library without additional processing.
+/// Describes the extent of a captured image. For a full-monitor capture this
+/// matches the monitor's `physical` bounds, but future region captures may
+/// produce different dimensions.
+#[napi(object, js_name = "Size")]
+pub struct JsSize {
+    /// Image width in pixels.
+    pub width: u32,
+    /// Image height in pixels.
+    pub height: u32,
+}
+
+impl From<Size> for JsSize {
+    fn from(s: Size) -> Self {
+        Self {
+            width: s.width,
+            height: s.height,
+        }
+    }
+}
+
+/// The encoding format of a captured screenshot.
+///
+/// Indicates which image codec was used to encode `Screenshot.data`.
+///
+/// | Value | MIME type | Notes |
+/// |-------|-----------|-------|
+/// | `"Png"` | `image/png` | Default. Lossless, pixel-perfect. |
+/// | `"Jpeg"` | `image/jpeg` | Lossy. Smaller files. *(planned)* |
+/// | `"WebP"` | `image/webp` | Lossy/lossless. Good compression. *(planned)* |
+/// | `"Avif"` | `image/avif` | Best compression. *(planned)* |
+#[napi(string_enum, js_name = "ImageFormat")]
+pub enum JsImageFormat {
+    /// PNG — lossless, pixel-perfect. Default format.
+    Png,
+    /// JPEG — lossy compression.
+    Jpeg,
+    /// WebP — lossy or lossless.
+    WebP,
+    /// AVIF — lossy or lossless, best compression.
+    Avif,
+}
+
+impl From<ImageFormat> for JsImageFormat {
+    fn from(f: ImageFormat) -> Self {
+        match f {
+            ImageFormat::Png => Self::Png,
+            ImageFormat::Jpeg => Self::Jpeg,
+            ImageFormat::WebP => Self::WebP,
+            ImageFormat::Avif => Self::Avif,
+        }
+    }
+}
+
+/// A captured screenshot — the image payload with its dimensions and format.
+///
+/// `data` contains encoded image bytes in the format indicated by `format`
+/// (PNG by default). It can be written to disk, served over HTTP, or passed
+/// directly to any image library without additional processing.
+///
+/// `size` reflects the **actual** pixel dimensions of the encoded image.
+/// Use `size.width` and `size.height` to know the image dimensions without
+/// inspecting the encoded bytes.
+///
+/// `format` tells you which codec was used, so you can set the correct
+/// `Content-Type` header or file extension without guessing.
 #[napi(object, js_name = "Screenshot")]
 pub struct JsScreenshot {
-    /// Metadata of the monitor this screenshot was captured from.
-    pub monitor: JsMonitor,
-    /// PNG-encoded image bytes. The buffer dimensions match the monitor's
-    /// `physical.width` × `physical.height`.
+    /// Actual pixel dimensions of the encoded image.
+    pub size: JsSize,
+    /// The encoding format of `data` (e.g. `"Png"`).
+    pub format: JsImageFormat,
+    /// Encoded image bytes in the format specified by `format`.
     pub data: Buffer,
 }
 
 impl From<Screenshot> for JsScreenshot {
     fn from(s: Screenshot) -> Self {
         Self {
-            monitor: JsMonitor::from(s.monitor),
+            size: JsSize::from(s.size),
+            format: JsImageFormat::from(s.format),
             data: s.data.into(),
+        }
+    }
+}
+
+/// The result of a capture operation — pairs monitor metadata with the
+/// captured screenshot.
+///
+/// Returned by `captureMonitor()` and `captureAllMonitors()`.
+///
+/// ```ts
+/// const result: CaptureResult = await captureMonitor(1)
+/// result.monitor.name            // "Built-in Retina Display"
+/// result.screenshot.size.width   // 2560
+/// result.screenshot.data         // <Buffer 89 50 4e 47 ...>
+/// ```
+#[napi(object, js_name = "CaptureResult")]
+pub struct JsCaptureResult {
+    /// Metadata of the monitor this screenshot was captured from.
+    pub monitor: JsMonitor,
+    /// The captured image with its dimensions and encoded bytes.
+    pub screenshot: JsScreenshot,
+}
+
+impl From<CaptureResult> for JsCaptureResult {
+    fn from(r: CaptureResult) -> Self {
+        Self {
+            monitor: JsMonitor::from(r.monitor),
+            screenshot: JsScreenshot::from(r.screenshot),
         }
     }
 }

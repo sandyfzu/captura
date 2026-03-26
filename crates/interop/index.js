@@ -580,3 +580,5 @@ module.exports.captureAllMonitors = nativeBinding.captureAllMonitors
 module.exports.captureMonitor = nativeBinding.captureMonitor
 module.exports.getMonitorById = nativeBinding.getMonitorById
 module.exports.getMonitors = nativeBinding.getMonitors
+module.exports.ImageFormat = nativeBinding.ImageFormat
+module.exports.JsImageFormat = nativeBinding.JsImageFormat

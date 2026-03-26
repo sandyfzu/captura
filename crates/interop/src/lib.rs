@@ -18,7 +18,7 @@ mod types;
 
 use napi_derive::napi;
 
-use types::{JsMonitor, JsScreenshot};
+use types::{JsCaptureResult, JsMonitor};
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -52,30 +52,32 @@ pub async fn get_monitor_by_id(id: u32) -> napi::Result<JsMonitor> {
 
 /// Captures a PNG-encoded screenshot of the monitor with the given `id`.
 ///
-/// Returns a `Screenshot` containing monitor metadata and a `Buffer` with
-/// the PNG data.
+/// Returns a `CaptureResult` containing monitor metadata and a `Screenshot`
+/// with the image dimensions and PNG-encoded `Buffer`.
 ///
 /// ```ts
-/// const screenshot: Screenshot = await captureMonitor(1)
-/// // screenshot.data is a Buffer containing PNG bytes
+/// const result: CaptureResult = await captureMonitor(1)
+/// result.screenshot.size   // { width: 2560, height: 1600 }
+/// result.screenshot.data   // <Buffer 89 50 4e 47 ...>
+/// result.monitor.name      // "Built-in Retina Display"
 /// ```
 #[napi]
-pub async fn capture_monitor(id: u32) -> napi::Result<JsScreenshot> {
-    let screenshot = xshot_core::capture_monitor(id)
+pub async fn capture_monitor(id: u32) -> napi::Result<JsCaptureResult> {
+    let result = xshot_core::capture_monitor(id)
         .await
         .map_err(error::to_napi)?;
-    Ok(JsScreenshot::from(screenshot))
+    Ok(JsCaptureResult::from(result))
 }
 
 /// Captures PNG-encoded screenshots of every connected monitor.
 ///
 /// ```ts
-/// const screenshots: Screenshot[] = await captureAllMonitors()
+/// const results: CaptureResult[] = await captureAllMonitors()
 /// ```
 #[napi]
-pub async fn capture_all_monitors() -> napi::Result<Vec<JsScreenshot>> {
-    let screenshots = xshot_core::capture_all_monitors()
+pub async fn capture_all_monitors() -> napi::Result<Vec<JsCaptureResult>> {
+    let results = xshot_core::capture_all_monitors()
         .await
         .map_err(error::to_napi)?;
-    Ok(screenshots.into_iter().map(JsScreenshot::from).collect())
+    Ok(results.into_iter().map(JsCaptureResult::from).collect())
 }

@@ -22,23 +22,45 @@ export interface Bounds {
  * Captures PNG-encoded screenshots of every connected monitor.
  *
  * ```ts
- * const screenshots: Screenshot[] = await captureAllMonitors()
+ * const results: CaptureResult[] = await captureAllMonitors()
  * ```
  */
-export declare function captureAllMonitors(): Promise<Array<Screenshot>>
+export declare function captureAllMonitors(): Promise<Array<CaptureResult>>
 
 /**
  * Captures a PNG-encoded screenshot of the monitor with the given `id`.
  *
- * Returns a `Screenshot` containing monitor metadata and a `Buffer` with
- * the PNG data.
+ * Returns a `CaptureResult` containing monitor metadata and a `Screenshot`
+ * with the image dimensions and PNG-encoded `Buffer`.
  *
  * ```ts
- * const screenshot: Screenshot = await captureMonitor(1)
- * // screenshot.data is a Buffer containing PNG bytes
+ * const result: CaptureResult = await captureMonitor(1)
+ * result.screenshot.size   // { width: 2560, height: 1600 }
+ * result.screenshot.data   // <Buffer 89 50 4e 47 ...>
+ * result.monitor.name      // "Built-in Retina Display"
  * ```
  */
-export declare function captureMonitor(id: number): Promise<Screenshot>
+export declare function captureMonitor(id: number): Promise<CaptureResult>
+
+/**
+ * The result of a capture operation — pairs monitor metadata with the
+ * captured screenshot.
+ *
+ * Returned by `captureMonitor()` and `captureAllMonitors()`.
+ *
+ * ```ts
+ * const result: CaptureResult = await captureMonitor(1)
+ * result.monitor.name            // "Built-in Retina Display"
+ * result.screenshot.size.width   // 2560
+ * result.screenshot.data         // <Buffer 89 50 4e 47 ...>
+ * ```
+ */
+export interface CaptureResult {
+  /** Metadata of the monitor this screenshot was captured from. */
+  monitor: Monitor
+  /** The captured image with its dimensions and encoded bytes. */
+  screenshot: Screenshot
+}
 
 /**
  * Returns metadata for the monitor with the given `id`.
@@ -59,6 +81,29 @@ export declare function getMonitorById(id: number): Promise<Monitor>
  * ```
  */
 export declare function getMonitors(): Promise<Array<Monitor>>
+
+/**
+ * The encoding format of a captured screenshot.
+ *
+ * Indicates which image codec was used to encode `Screenshot.data`.
+ *
+ * | Value | MIME type | Notes |
+ * |-------|-----------|-------|
+ * | `"Png"` | `image/png` | Default. Lossless, pixel-perfect. |
+ * | `"Jpeg"` | `image/jpeg` | Lossy. Smaller files. *(planned)* |
+ * | `"WebP"` | `image/webp` | Lossy/lossless. Good compression. *(planned)* |
+ * | `"Avif"` | `image/avif` | Best compression. *(planned)* |
+ */
+export declare const enum ImageFormat {
+  /** PNG — lossless, pixel-perfect. Default format. */
+  Png = 'Png',
+  /** JPEG — lossy compression. */
+  Jpeg = 'Jpeg',
+  /** WebP — lossy or lossless. */
+  WebP = 'WebP',
+  /** AVIF — lossy or lossless, best compression. */
+  Avif = 'Avif'
+}
 
 /**
  * JavaScript-facing monitor metadata.
@@ -150,19 +195,38 @@ export interface Monitor {
 }
 
 /**
- * JavaScript-facing screenshot result pairing monitor metadata with the
- * captured image data.
+ * A captured screenshot — the image payload with its dimensions and format.
  *
- * The `data` buffer contains a **PNG-encoded** image by default. It can be
- * written to disk, served over HTTP, or passed directly to any image
- * library without additional processing.
+ * `data` contains encoded image bytes in the format indicated by `format`
+ * (PNG by default). It can be written to disk, served over HTTP, or passed
+ * directly to any image library without additional processing.
+ *
+ * `size` reflects the **actual** pixel dimensions of the encoded image.
+ * Use `size.width` and `size.height` to know the image dimensions without
+ * inspecting the encoded bytes.
+ *
+ * `format` tells you which codec was used, so you can set the correct
+ * `Content-Type` header or file extension without guessing.
  */
 export interface Screenshot {
-  /** Metadata of the monitor this screenshot was captured from. */
-  monitor: Monitor
-  /**
-   * PNG-encoded image bytes. The buffer dimensions match the monitor's
-   * `physical.width` × `physical.height`.
-   */
+  /** Actual pixel dimensions of the encoded image. */
+  size: Size
+  /** The encoding format of `data` (e.g. `"Png"`). */
+  format: ImageFormat
+  /** Encoded image bytes in the format specified by `format`. */
   data: Buffer
+}
+
+/**
+ * Image dimensions in pixels.
+ *
+ * Describes the extent of a captured image. For a full-monitor capture this
+ * matches the monitor's `physical` bounds, but future region captures may
+ * produce different dimensions.
+ */
+export interface Size {
+  /** Image width in pixels. */
+  width: number
+  /** Image height in pixels. */
+  height: number
 }
