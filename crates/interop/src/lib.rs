@@ -79,6 +79,3 @@ pub async fn capture_all_monitors() -> napi::Result<Vec<JsScreenshot>> {
         .map_err(error::to_napi)?;
     Ok(screenshots.into_iter().map(JsScreenshot::from).collect())
 }
-
-// Uncomment when adding #[napi] functions:
-// use napi_derive::napi;

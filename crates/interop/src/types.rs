@@ -6,7 +6,35 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use xshot_domain::{MonitorInfo, Screenshot};
+use xshot_domain::{Bounds, MonitorInfo, Screenshot};
+
+/// A rectangular region in a 2D coordinate space.
+///
+/// Used to represent monitor geometry. The coordinate system (physical pixels
+/// or logical DIP units) depends on context — see the `physical` and
+/// `logical` fields on [`Monitor`].
+#[napi(object, js_name = "Bounds")]
+pub struct JsBounds {
+    /// Horizontal position of the top-left corner.
+    pub x: i32,
+    /// Vertical position of the top-left corner.
+    pub y: i32,
+    /// Horizontal extent in the given coordinate system.
+    pub width: u32,
+    /// Vertical extent in the given coordinate system.
+    pub height: u32,
+}
+
+impl From<Bounds> for JsBounds {
+    fn from(b: Bounds) -> Self {
+        Self {
+            x: b.x,
+            y: b.y,
+            width: b.width,
+            height: b.height,
+        }
+    }
+}
 
 /// JavaScript-facing monitor metadata.
 ///
@@ -18,19 +46,16 @@ use xshot_domain::{MonitorInfo, Screenshot};
 ///
 /// ## Physical vs. logical coordinates
 ///
-/// The top-level geometry fields (`x`, `y`, `width`, `height`) are in
-/// **physical pixels** — they always match the dimensions of a captured
-/// screenshot buffer. This is the default because screenshot consumers
-/// (image libraries, canvas drawing, file output) operate in physical pixels.
+/// `physical` contains geometry in **physical pixels** — values that always
+/// match the dimensions of a captured screenshot buffer. This is what you
+/// want when working with image data (drawing, saving, pixel manipulation).
 ///
-/// The `logical*` fields (`logicalX`, `logicalY`, `logicalWidth`,
-/// `logicalHeight`) represent the same geometry in **logical (DIP / CSS-point)
+/// `logical` contains the same geometry in **logical (DIP / CSS-point)
 /// units** as the OS or window manager sees them. On a 2× Retina display a
-/// 2560×1600 physical screen has 1280×800 logical dimensions.
-/// Physical and logical values will be the same on a standard 1× display, but on HiDPI / Retina screens they differ by the `scaleFactor`.
+/// 2560×1600 physical screen has 1280×800 logical dimensions. Physical and
+/// logical values are identical on standard 1× displays.
 ///
-/// Both sets are always populated. You can convert between them with the
-/// `scaleFactor`:
+/// Both are always populated. Convert between them with `scaleFactor`:
 ///
 /// ```ts
 /// physical = logical * scaleFactor
@@ -64,38 +89,13 @@ pub struct JsMonitor {
     /// - **Linux**: same as `name` (X11 does not expose a separate friendly name)
     pub friendly_name: String,
 
-    /// Horizontal position of the monitor's top-left corner in **physical
-    /// pixels** within the virtual-screen coordinate space. This is the
-    /// default coordinate system — it matches captured screenshot dimensions.
-    pub x: i32,
+    /// Monitor geometry in **physical pixels**. Values match the dimensions
+    /// of captured screenshot buffers. Use this when working with image data.
+    pub physical: JsBounds,
 
-    /// Vertical position of the monitor's top-left corner in **physical
-    /// pixels** within the virtual-screen coordinate space.
-    pub y: i32,
-
-    /// Horizontal resolution in **physical pixels**. Matches the width of
-    /// a captured screenshot buffer for this monitor.
-    pub width: u32,
-
-    /// Vertical resolution in **physical pixels**. Matches the height of
-    /// a captured screenshot buffer for this monitor.
-    pub height: u32,
-
-    /// Horizontal position of the monitor's top-left corner in **logical
-    /// (DIP / CSS-point) units**. Equal to `x / scaleFactor`.
-    pub logical_x: i32,
-
-    /// Vertical position of the monitor's top-left corner in **logical
-    /// (DIP / CSS-point) units**. Equal to `y / scaleFactor`.
-    pub logical_y: i32,
-
-    /// Horizontal resolution in **logical (DIP / CSS-point) units**.
-    /// Equal to `width / scaleFactor`.
-    pub logical_width: u32,
-
-    /// Vertical resolution in **logical (DIP / CSS-point) units**.
-    /// Equal to `height / scaleFactor`.
-    pub logical_height: u32,
+    /// Monitor geometry in **logical (DIP / CSS-point) units** as reported
+    /// by the OS window manager. Use this for UI layout and positioning.
+    pub logical: JsBounds,
 
     /// Display rotation in degrees. Common values: `0.0`, `90.0`, `180.0`,
     /// `270.0`.
@@ -123,14 +123,8 @@ impl From<MonitorInfo> for JsMonitor {
             id: m.id,
             name: m.name,
             friendly_name: m.friendly_name,
-            x: m.x,
-            y: m.y,
-            width: m.width,
-            height: m.height,
-            logical_x: m.logical_x,
-            logical_y: m.logical_y,
-            logical_width: m.logical_width,
-            logical_height: m.logical_height,
+            physical: JsBounds::from(m.physical),
+            logical: JsBounds::from(m.logical),
             rotation: m.rotation,
             scale_factor: m.scale_factor,
             frequency: m.frequency,
@@ -151,7 +145,7 @@ pub struct JsScreenshot {
     /// Metadata of the monitor this screenshot was captured from.
     pub monitor: JsMonitor,
     /// PNG-encoded image bytes. The buffer dimensions match the monitor's
-    /// physical `width` × `height`.
+    /// `physical.width` × `physical.height`.
     pub data: Buffer,
 }
 

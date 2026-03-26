@@ -7,7 +7,7 @@
 //! # Design Principles
 //!
 //! - No Node.js or NAPI-rs types in this layer.
-//! - Wraps `xcap::Monitor`, `xcap::Window`, and related types.
+//! - Wraps `xcap::Monitor` and related types. (`Window` support is planned.)
 //! - Platform-specific code is isolated behind `#[cfg(target_os = "...")]`
 //!   in separate modules.
 //! - All operations that may block are offloaded to `tokio::task::spawn_blocking`.

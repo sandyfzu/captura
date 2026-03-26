@@ -15,21 +15,44 @@
 //! This keeps the data model simple and avoids subtle bugs from holding
 //! stale handles.
 
+/// A rectangular region in a 2D coordinate space.
+///
+/// Used to represent monitor geometry in both physical-pixel and logical
+/// (DIP / CSS-point) coordinate systems. See [`MonitorInfo::physical`] and
+/// [`MonitorInfo::logical`] for the two coordinate spaces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bounds {
+    /// Horizontal position of the top-left corner.
+    pub x: i32,
+    /// Vertical position of the top-left corner.
+    pub y: i32,
+    /// Horizontal extent.
+    pub width: u32,
+    /// Vertical extent.
+    pub height: u32,
+}
+
 /// Normalised metadata for a single display monitor.
 ///
-/// The struct exposes **two** sets of geometry:
+/// Geometry is exposed as two [`Bounds`] structs:
 ///
-/// - **Physical** (`x`, `y`, `width`, `height`): pixel-exact values that
-///   match captured screenshot dimensions on every platform.
-/// - **Logical** (`logical_x`, `logical_y`, `logical_width`,
-///   `logical_height`): DIP / CSS-point values as reported (or derived) from
-///   the OS. On a 2× Retina display a 2560×1600 physical screen has
+/// - **`physical`**: pixel-exact dimensions that match captured screenshot
+///   buffers on every platform.
+/// - **`logical`**: DIP / CSS-point dimensions as the OS window manager
+///   sees them. On a 2× Retina display a 2560×1600 physical screen has
 ///   1280×800 logical dimensions.
 ///
-/// Both sets are always populated. On platforms where xcap already reports
+/// Both are always populated. On platforms where xcap already reports
 /// physical pixels (Windows), logical values are derived by dividing by the
 /// scale factor. On platforms where xcap reports logical values (macOS,
 /// Linux), physical values are derived by multiplying by the scale factor.
+///
+/// You can convert between them:
+///
+/// ```text
+/// physical = logical × scale_factor
+/// logical  = physical ÷ scale_factor
+/// ```
 ///
 /// # Field semantics
 ///
@@ -38,10 +61,8 @@
 /// | `id` | OS-assigned monitor identifier (stable within a session) |
 /// | `name` | System-level device / output name (see *Platform names* below) |
 /// | `friendly_name` | Human-readable display name (see *Platform names* below) |
-/// | `x`, `y` | Top-left corner in the **physical-pixel** virtual-screen space |
-/// | `width`, `height` | Resolution in **physical pixels** (matches screenshot dimensions) |
-/// | `logical_x`, `logical_y` | Top-left corner in **logical / DIP** coordinates |
-/// | `logical_width`, `logical_height` | Resolution in **logical / DIP** units |
+/// | `physical` | Geometry in **physical pixels** (matches screenshot dimensions) |
+/// | `logical` | Geometry in **logical / DIP** units |
 /// | `rotation` | Display rotation in degrees (0.0, 90.0, …) |
 /// | `scale_factor` | HiDPI / Retina scale (1.0 = standard, 2.0 = Retina) |
 /// | `frequency` | Refresh rate in Hz |
@@ -68,14 +89,10 @@ pub struct MonitorInfo {
     pub id: u32,
     pub name: String,
     pub friendly_name: String,
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub logical_x: i32,
-    pub logical_y: i32,
-    pub logical_width: u32,
-    pub logical_height: u32,
+    /// Geometry in **physical pixels** — matches captured screenshot dimensions.
+    pub physical: Bounds,
+    /// Geometry in **logical (DIP / CSS-point) units**.
+    pub logical: Bounds,
     pub rotation: f64,
     pub scale_factor: f64,
     pub frequency: f64,

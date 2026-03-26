@@ -41,7 +41,8 @@
 //! - `xcap` v0.9.3 — `Monitor::all()`, `Monitor::capture_image()`
 //! - `tokio::task::spawn_blocking` — offloads synchronous work
 
-use xshot_domain::{MonitorInfo, Screenshot, XshotError};
+use log::debug;
+use xshot_domain::{Bounds, MonitorInfo, Screenshot, XshotError};
 use xshot_utils::encode_rgba_to_png;
 
 /// Converts xcap's reported geometry to physical pixels.
@@ -207,18 +208,30 @@ fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
     // is_builtin may not be supported on all platforms; default to false.
     let is_builtin = m.is_builtin().unwrap_or(false);
 
-    Ok(MonitorInfo {
-        id,
-        name,
-        friendly_name,
+    let physical = Bounds {
         x,
         y,
         width,
         height,
-        logical_x,
-        logical_y,
-        logical_width,
-        logical_height,
+    };
+    let logical = Bounds {
+        x: logical_x,
+        y: logical_y,
+        width: logical_width,
+        height: logical_height,
+    };
+
+    debug!(
+        "monitor {id} ({name:?}): physical={}\u{00d7}{} logical={}\u{00d7}{} scale={scale_factor}",
+        physical.width, physical.height, logical.width, logical.height,
+    );
+
+    Ok(MonitorInfo {
+        id,
+        name,
+        friendly_name,
+        physical,
+        logical,
         rotation,
         scale_factor,
         frequency,
@@ -241,7 +254,13 @@ pub async fn get_monitors() -> Result<Vec<MonitorInfo>, XshotError> {
             XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
         })?;
 
-        monitors.iter().map(monitor_info).collect()
+        let infos: Vec<MonitorInfo> = monitors
+            .iter()
+            .map(monitor_info)
+            .collect::<Result<_, _>>()?;
+
+        debug!("discovered {} monitor(s)", infos.len());
+        Ok(infos)
     })
     .await
     .map_err(|e| XshotError::internal(format!("monitor listing task panicked: {e}")))?
@@ -298,11 +317,23 @@ pub async fn capture_monitor(id: u32) -> Result<Screenshot, XshotError> {
 
         let info = monitor_info(xcap_monitor)?;
 
+        debug!(
+            "capturing monitor {id} ({}\u{00d7}{})",
+            info.physical.width, info.physical.height,
+        );
+
         let image = xcap_monitor
             .capture_image()
             .map_err(|e| XshotError::capture_failed(format!("monitor {id}: {e}")))?;
 
         let data = encode_rgba_to_png(image.as_raw(), image.width(), image.height())?;
+
+        debug!(
+            "captured monitor {id}: {}\u{00d7}{} \u{2192} {} bytes PNG",
+            image.width(),
+            image.height(),
+            data.len(),
+        );
 
         Ok(Screenshot {
             monitor: info,
@@ -330,6 +361,8 @@ pub async fn capture_all_monitors() -> Result<Vec<Screenshot>, XshotError> {
             XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
         })?;
 
+        debug!("capturing all {} monitor(s)", monitors.len());
+
         let mut screenshots = Vec::with_capacity(monitors.len());
 
         for m in &monitors {
@@ -342,12 +375,20 @@ pub async fn capture_all_monitors() -> Result<Vec<Screenshot>, XshotError> {
 
             let data = encode_rgba_to_png(image.as_raw(), image.width(), image.height())?;
 
+            debug!(
+                "captured monitor {mid}: {}\u{00d7}{} \u{2192} {} bytes PNG",
+                image.width(),
+                image.height(),
+                data.len(),
+            );
+
             screenshots.push(Screenshot {
                 monitor: info,
                 data,
             });
         }
 
+        debug!("captured {} screenshot(s) total", screenshots.len());
         Ok(screenshots)
     })
     .await

@@ -63,109 +63,88 @@ impl fmt::Display for XshotErrorCode {
 
 /// The unified error type for all xshot operations.
 ///
-/// Every variant carries:
-/// - A [`XshotErrorCode`] for programmatic matching.
-/// - A human-readable message produced by `thiserror`.
+/// Each variant carries a human-readable `message`. The associated
+/// [`XshotErrorCode`] is derived from the variant — there is no separate
+/// `code` field, which eliminates the possibility of a mismatched code.
 ///
 /// When crossing the FFI boundary the interop layer converts this into a
-/// JavaScript `Error` with a `code` property set to
-/// [`XshotErrorCode::as_str`].
+/// JavaScript `Error` with the code prefixed to the message:
+/// `[MONITOR_NOT_FOUND] Monitor not found: no monitor with id 42`.
 #[derive(Debug, thiserror::Error)]
 pub enum XshotError {
     /// Failed to initialise the capture subsystem.
     #[error("Initialization failed: {message}")]
-    Initialization {
-        code: XshotErrorCode,
-        message: String,
-    },
+    Initialization { message: String },
 
     /// The requested monitor was not found.
     #[error("Monitor not found: {message}")]
-    MonitorNotFound {
-        code: XshotErrorCode,
-        message: String,
-    },
+    MonitorNotFound { message: String },
 
     /// A capture operation failed.
     #[error("Capture failed: {message}")]
-    CaptureFailed {
-        code: XshotErrorCode,
-        message: String,
-    },
+    CaptureFailed { message: String },
 
     /// The OS denied screen-capture permission.
     #[error("Permission denied: {message}")]
-    PermissionDenied {
-        code: XshotErrorCode,
-        message: String,
-    },
+    PermissionDenied { message: String },
 
     /// Feature not supported on the current platform.
     #[error("Platform not supported: {message}")]
-    PlatformNotSupported {
-        code: XshotErrorCode,
-        message: String,
-    },
+    PlatformNotSupported { message: String },
 
     /// Image encoding failed.
     #[error("Encoding error: {message}")]
-    EncodingError {
-        code: XshotErrorCode,
-        message: String,
-    },
+    EncodingError { message: String },
 
     /// Invalid argument provided by the caller.
     #[error("Invalid argument: {message}")]
-    InvalidArgument {
-        code: XshotErrorCode,
-        message: String,
-    },
+    InvalidArgument { message: String },
 
     /// Catch-all for unexpected internal failures.
     #[error("Internal error: {message}")]
-    InternalError {
-        code: XshotErrorCode,
-        message: String,
-    },
+    InternalError { message: String },
 
     /// Operation timed out.
     #[error("Timeout: {message}")]
-    Timeout {
-        code: XshotErrorCode,
-        message: String,
-    },
+    Timeout { message: String },
 
     /// An OS resource became unavailable.
     #[error("Resource unavailable: {message}")]
-    ResourceUnavailable {
-        code: XshotErrorCode,
-        message: String,
-    },
+    ResourceUnavailable { message: String },
 }
 
 impl XshotError {
     /// Returns the [`XshotErrorCode`] associated with this error.
+    ///
+    /// The code is derived from the enum variant — each variant maps to
+    /// exactly one code, ensuring the relationship is always consistent.
     pub fn code(&self) -> XshotErrorCode {
         match self {
-            Self::Initialization { code, .. }
-            | Self::MonitorNotFound { code, .. }
-            | Self::CaptureFailed { code, .. }
-            | Self::PermissionDenied { code, .. }
-            | Self::PlatformNotSupported { code, .. }
-            | Self::EncodingError { code, .. }
-            | Self::InvalidArgument { code, .. }
-            | Self::InternalError { code, .. }
-            | Self::Timeout { code, .. }
-            | Self::ResourceUnavailable { code, .. } => *code,
+            Self::Initialization { .. } => XshotErrorCode::InitializationError,
+            Self::MonitorNotFound { .. } => XshotErrorCode::MonitorNotFound,
+            Self::CaptureFailed { .. } => XshotErrorCode::CaptureFailed,
+            Self::PermissionDenied { .. } => XshotErrorCode::PermissionDenied,
+            Self::PlatformNotSupported { .. } => XshotErrorCode::PlatformNotSupported,
+            Self::EncodingError { .. } => XshotErrorCode::EncodingError,
+            Self::InvalidArgument { .. } => XshotErrorCode::InvalidArgument,
+            Self::InternalError { .. } => XshotErrorCode::InternalError,
+            Self::Timeout { .. } => XshotErrorCode::TimeoutError,
+            Self::ResourceUnavailable { .. } => XshotErrorCode::ResourceUnavailable,
         }
     }
 
     // -- Convenience constructors --
 
+    /// Creates a [`XshotError::Initialization`] from a source error message.
+    pub fn initialization(msg: impl Into<String>) -> Self {
+        Self::Initialization {
+            message: msg.into(),
+        }
+    }
+
     /// Creates a [`XshotError::MonitorNotFound`] for the given monitor ID.
     pub fn monitor_not_found(id: u32) -> Self {
         Self::MonitorNotFound {
-            code: XshotErrorCode::MonitorNotFound,
             message: format!("no monitor with id {id}"),
         }
     }
@@ -173,7 +152,20 @@ impl XshotError {
     /// Creates a [`XshotError::CaptureFailed`] from a source error message.
     pub fn capture_failed(msg: impl Into<String>) -> Self {
         Self::CaptureFailed {
-            code: XshotErrorCode::CaptureFailed,
+            message: msg.into(),
+        }
+    }
+
+    /// Creates a [`XshotError::PermissionDenied`] from a source error message.
+    pub fn permission_denied(msg: impl Into<String>) -> Self {
+        Self::PermissionDenied {
+            message: msg.into(),
+        }
+    }
+
+    /// Creates a [`XshotError::PlatformNotSupported`] from a source error message.
+    pub fn platform_not_supported(msg: impl Into<String>) -> Self {
+        Self::PlatformNotSupported {
             message: msg.into(),
         }
     }
@@ -181,7 +173,13 @@ impl XshotError {
     /// Creates a [`XshotError::EncodingError`] from a source error message.
     pub fn encoding_error(msg: impl Into<String>) -> Self {
         Self::EncodingError {
-            code: XshotErrorCode::EncodingError,
+            message: msg.into(),
+        }
+    }
+
+    /// Creates a [`XshotError::InvalidArgument`] from a source error message.
+    pub fn invalid_argument(msg: impl Into<String>) -> Self {
+        Self::InvalidArgument {
             message: msg.into(),
         }
     }
@@ -189,7 +187,13 @@ impl XshotError {
     /// Creates a [`XshotError::InternalError`] from a source error message.
     pub fn internal(msg: impl Into<String>) -> Self {
         Self::InternalError {
-            code: XshotErrorCode::InternalError,
+            message: msg.into(),
+        }
+    }
+
+    /// Creates a [`XshotError::Timeout`] from a source error message.
+    pub fn timeout(msg: impl Into<String>) -> Self {
+        Self::Timeout {
             message: msg.into(),
         }
     }
@@ -197,8 +201,83 @@ impl XshotError {
     /// Creates a [`XshotError::ResourceUnavailable`] from a source error message.
     pub fn resource_unavailable(msg: impl Into<String>) -> Self {
         Self::ResourceUnavailable {
-            code: XshotErrorCode::ResourceUnavailable,
             message: msg.into(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn code_derived_from_variant() {
+        assert_eq!(
+            XshotError::initialization("x").code(),
+            XshotErrorCode::InitializationError,
+        );
+        assert_eq!(
+            XshotError::monitor_not_found(1).code(),
+            XshotErrorCode::MonitorNotFound,
+        );
+        assert_eq!(
+            XshotError::capture_failed("x").code(),
+            XshotErrorCode::CaptureFailed,
+        );
+        assert_eq!(
+            XshotError::permission_denied("x").code(),
+            XshotErrorCode::PermissionDenied,
+        );
+        assert_eq!(
+            XshotError::platform_not_supported("x").code(),
+            XshotErrorCode::PlatformNotSupported,
+        );
+        assert_eq!(
+            XshotError::encoding_error("x").code(),
+            XshotErrorCode::EncodingError,
+        );
+        assert_eq!(
+            XshotError::invalid_argument("x").code(),
+            XshotErrorCode::InvalidArgument,
+        );
+        assert_eq!(
+            XshotError::internal("x").code(),
+            XshotErrorCode::InternalError,
+        );
+        assert_eq!(
+            XshotError::timeout("x").code(),
+            XshotErrorCode::TimeoutError,
+        );
+        assert_eq!(
+            XshotError::resource_unavailable("x").code(),
+            XshotErrorCode::ResourceUnavailable,
+        );
+    }
+
+    #[test]
+    fn display_is_human_readable() {
+        let err = XshotError::monitor_not_found(42);
+        assert_eq!(err.to_string(), "Monitor not found: no monitor with id 42");
+
+        let err = XshotError::capture_failed("device busy");
+        assert_eq!(err.to_string(), "Capture failed: device busy");
+    }
+
+    #[test]
+    fn error_code_as_str_matches_display() {
+        for code in [
+            XshotErrorCode::InitializationError,
+            XshotErrorCode::MonitorNotFound,
+            XshotErrorCode::CaptureFailed,
+            XshotErrorCode::PermissionDenied,
+            XshotErrorCode::PlatformNotSupported,
+            XshotErrorCode::EncodingError,
+            XshotErrorCode::InvalidArgument,
+            XshotErrorCode::InternalError,
+            XshotErrorCode::TimeoutError,
+            XshotErrorCode::ResourceUnavailable,
+        ] {
+            assert_eq!(code.to_string(), code.as_str());
         }
     }
 }

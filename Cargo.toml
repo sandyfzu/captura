@@ -26,8 +26,9 @@ napi = { version = "3", features = ["async", "napi9"] }
 napi-derive = "3"
 napi-build = "2"
 
-# Async runtime
-tokio = { version = "1", features = ["full"] }
+# Async runtime (only `rt` is needed for spawn_blocking — napi-rs manages the
+# multi-thread runtime itself)
+tokio = { version = "1", features = ["rt"] }
 
 # Error handling
 thiserror = "2"
@@ -35,5 +36,7 @@ thiserror = "2"
 # Image encoding (transitive via xcap; added directly for encoding utilities)
 image = "0.25"
 
-# Logging
-log = "0.4"
+# Logging — release_max_level_off compiles all log macros to no-ops in
+# --release builds, ensuring zero overhead in production.
+# Source: https://docs.rs/log/0.4/log/#compile-time-filters
+log = { version = "0.4", features = ["release_max_level_off"] }
