@@ -6,7 +6,10 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use xshot_domain::{Bounds, CaptureResult, ImageFormat, MonitorInfo, Screenshot, Size};
+use xshot_domain::{
+    Base64CaptureResult, Base64Screenshot, Bounds, CaptureResult, ImageFormat, MonitorInfo,
+    Screenshot, Size,
+};
 
 /// A rectangular region in a 2D coordinate space.
 ///
@@ -270,6 +273,66 @@ impl From<CaptureResult> for JsCaptureResult {
         Self {
             monitor: JsMonitor::from(r.monitor),
             screenshot: JsScreenshot::from(r.screenshot),
+        }
+    }
+}
+
+/// A captured screenshot with Base64-encoded data.
+///
+/// Identical to [`JsScreenshot`] except `data` is a
+/// [RFC 4648](https://datatracker.ietf.org/doc/html/rfc4648#section-4)
+/// Base64 string instead of a `Buffer`. Useful when the consumer needs a
+/// string representation — for example, embedding in JSON payloads, data
+/// URIs, or HTML `<img>` tags:
+///
+/// ```ts
+/// const { screenshot } = await captureMonitorBase64(1)
+/// const dataUri = `data:image/png;base64,${screenshot.data}`
+/// ```
+#[napi(object, js_name = "Base64Screenshot")]
+pub struct JsBase64Screenshot {
+    /// Actual pixel dimensions of the encoded image.
+    pub size: JsSize,
+    /// The encoding format of the image before Base64 encoding.
+    pub format: JsImageFormat,
+    /// Base64-encoded image data (RFC 4648 standard alphabet with padding).
+    pub data: String,
+}
+
+impl From<Base64Screenshot> for JsBase64Screenshot {
+    fn from(s: Base64Screenshot) -> Self {
+        Self {
+            size: JsSize::from(s.size),
+            format: JsImageFormat::from(s.format),
+            data: s.data,
+        }
+    }
+}
+
+/// The result of a capture-to-Base64 operation — pairs monitor metadata
+/// with a Base64-encoded screenshot.
+///
+/// Returned by `captureMonitorBase64()` and `captureAllMonitorsBase64()`.
+///
+/// ```ts
+/// const result: Base64CaptureResult = await captureMonitorBase64(1)
+/// result.monitor.name              // "Built-in Retina Display"
+/// result.screenshot.size.width     // 2560
+/// result.screenshot.data           // "iVBORw0KGgo..."
+/// ```
+#[napi(object, js_name = "Base64CaptureResult")]
+pub struct JsBase64CaptureResult {
+    /// Metadata of the monitor this screenshot was captured from.
+    pub monitor: JsMonitor,
+    /// The captured image with Base64-encoded data.
+    pub screenshot: JsBase64Screenshot,
+}
+
+impl From<Base64CaptureResult> for JsBase64CaptureResult {
+    fn from(r: Base64CaptureResult) -> Self {
+        Self {
+            monitor: JsMonitor::from(r.monitor),
+            screenshot: JsBase64Screenshot::from(r.screenshot),
         }
     }
 }

@@ -18,7 +18,7 @@ mod types;
 
 use napi_derive::napi;
 
-use types::{JsCaptureResult, JsImageFormat, JsMonitor};
+use types::{JsBase64CaptureResult, JsCaptureResult, JsImageFormat, JsMonitor};
 use xshot_domain::ImageFormat;
 
 // ---------------------------------------------------------------------------
@@ -99,4 +99,49 @@ pub async fn capture_all_monitors(
         .await
         .map_err(error::to_napi)?;
     Ok(results.into_iter().map(JsCaptureResult::from).collect())
+}
+
+/// Captures a screenshot and returns it as a Base64-encoded string.
+///
+/// Identical to `captureMonitor()` except `screenshot.data` is a
+/// [RFC 4648](https://datatracker.ietf.org/doc/html/rfc4648#section-4)
+/// Base64 string instead of a `Buffer`.
+///
+/// ```ts
+/// const result: Base64CaptureResult = await captureMonitorBase64(1)
+/// const dataUri = `data:image/png;base64,${result.screenshot.data}`
+/// ```
+#[napi]
+pub async fn capture_monitor_base64(
+    id: u32,
+    format: Option<JsImageFormat>,
+) -> napi::Result<JsBase64CaptureResult> {
+    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let result = xshot_core::capture_monitor_base64(id, fmt)
+        .await
+        .map_err(error::to_napi)?;
+    Ok(JsBase64CaptureResult::from(result))
+}
+
+/// Captures Base64-encoded screenshots of every connected monitor.
+///
+/// Identical to `captureAllMonitors()` except each `screenshot.data` is a
+/// [RFC 4648](https://datatracker.ietf.org/doc/html/rfc4648#section-4)
+/// Base64 string instead of a `Buffer`.
+///
+/// ```ts
+/// const results: Base64CaptureResult[] = await captureAllMonitorsBase64()
+/// ```
+#[napi]
+pub async fn capture_all_monitors_base64(
+    format: Option<JsImageFormat>,
+) -> napi::Result<Vec<JsBase64CaptureResult>> {
+    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let results = xshot_core::capture_all_monitors_base64(fmt)
+        .await
+        .map_err(error::to_napi)?;
+    Ok(results
+        .into_iter()
+        .map(JsBase64CaptureResult::from)
+        .collect())
 }

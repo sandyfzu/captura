@@ -36,6 +36,9 @@ thiserror = "2"
 # Image encoding (transitive via xcap; added directly for encoding utilities)
 image = "0.25"
 
+# Base64 encoding (RFC 4648 standard alphabet)
+base64 = "0.22"
+
 # Logging — release_max_level_off compiles all log macros to no-ops in
 # --release builds, ensuring zero overhead in production.
 # Source: https://docs.rs/log/0.4/log/#compile-time-filters

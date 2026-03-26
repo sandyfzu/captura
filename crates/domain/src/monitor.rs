@@ -233,3 +233,44 @@ pub struct CaptureResult {
     /// The captured image with its dimensions and encoded bytes.
     pub screenshot: Screenshot,
 }
+
+/// A captured screenshot with its data encoded as a Base64 string.
+///
+/// Identical to [`Screenshot`] except `data` is a Base64-encoded string
+/// ([RFC 4648](https://datatracker.ietf.org/doc/html/rfc4648#section-4)
+/// standard alphabet with padding) instead of raw bytes.
+///
+/// This is useful when the consumer needs a string representation — for
+/// example, embedding in JSON payloads, data URIs, or HTML `<img>` tags.
+///
+/// To construct a [data URI](https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Schemes/data)
+/// from this screenshot:
+///
+/// ```text
+/// data:<mime_type>;base64,<data>
+/// ```
+///
+/// where `<mime_type>` is obtained from [`ImageFormat::mime_type`] and
+/// `<data>` is the `data` field.
+#[derive(Debug, Clone)]
+pub struct Base64Screenshot {
+    /// Actual pixel dimensions of the encoded image.
+    pub size: Size,
+    /// The encoding format of the image before Base64 encoding.
+    pub format: ImageFormat,
+    /// Base64-encoded image bytes (RFC 4648 standard alphabet with padding).
+    pub data: String,
+}
+
+/// The result of a capture-to-Base64 operation — pairs monitor metadata
+/// with a Base64-encoded screenshot.
+///
+/// Returned by [`capture_monitor_base64`](xshot_core::capture_monitor_base64)
+/// and [`capture_all_monitors_base64`](xshot_core::capture_all_monitors_base64).
+#[derive(Debug, Clone)]
+pub struct Base64CaptureResult {
+    /// Metadata of the monitor this screenshot was captured from.
+    pub monitor: MonitorInfo,
+    /// The captured image with its dimensions and Base64-encoded data.
+    pub screenshot: Base64Screenshot,
+}

@@ -577,7 +577,9 @@ if (!nativeBinding) {
 
 module.exports = nativeBinding
 module.exports.captureAllMonitors = nativeBinding.captureAllMonitors
+module.exports.captureAllMonitorsBase64 = nativeBinding.captureAllMonitorsBase64
 module.exports.captureMonitor = nativeBinding.captureMonitor
+module.exports.captureMonitorBase64 = nativeBinding.captureMonitorBase64
 module.exports.getMonitorById = nativeBinding.getMonitorById
 module.exports.getMonitors = nativeBinding.getMonitors
 module.exports.ImageFormat = nativeBinding.ImageFormat

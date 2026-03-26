@@ -14,4 +14,7 @@ mod error;
 mod monitor;
 
 pub use error::{XshotError, XshotErrorCode};
-pub use monitor::{Bounds, CaptureResult, ImageFormat, MonitorInfo, Screenshot, Size};
+pub use monitor::{
+    Base64CaptureResult, Base64Screenshot, Bounds, CaptureResult, ImageFormat, MonitorInfo,
+    Screenshot, Size,
+};

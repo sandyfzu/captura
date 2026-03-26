@@ -12,4 +12,4 @@
 
 mod encoding;
 
-pub use encoding::encode_rgba;
+pub use encoding::{encode_rgba, encode_rgba_base64};

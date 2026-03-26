@@ -9,4 +9,5 @@ description = "Shared utilities for xshot — encoding, error conversion, and cr
 [dependencies]
 xshot-domain = { workspace = true }
 image = { workspace = true }
+base64 = { workspace = true }
 log = { workspace = true }

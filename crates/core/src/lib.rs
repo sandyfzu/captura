@@ -14,4 +14,7 @@
 
 mod capture;
 
-pub use capture::{capture_all_monitors, capture_monitor, get_monitor_by_id, get_monitors};
+pub use capture::{
+    capture_all_monitors, capture_all_monitors_base64, capture_monitor, capture_monitor_base64,
+    get_monitor_by_id, get_monitors,
+};

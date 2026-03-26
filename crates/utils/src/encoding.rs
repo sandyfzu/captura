@@ -17,6 +17,8 @@
 //!
 //! - [`image::ImageEncoder::write_image`] — common trait for all encoders
 
+use base64::Engine as _;
+use base64::prelude::BASE64_STANDARD;
 use image::ImageEncoder;
 use image::codecs::avif::AvifEncoder;
 use image::codecs::jpeg::JpegEncoder;
@@ -92,6 +94,47 @@ pub fn encode_rgba(
         result.len()
     );
     Ok(result)
+}
+
+/// Encodes raw RGBA pixel data into the specified image format and then
+/// Base64-encodes the result.
+///
+/// This is a convenience function that composes [`encode_rgba`] with
+/// [RFC 4648 standard Base64](https://datatracker.ietf.org/doc/html/rfc4648#section-4)
+/// encoding (alphabet `A–Z`, `a–z`, `0–9`, `+`, `/` with `=` padding).
+///
+/// # Arguments
+///
+/// * `rgba` — Raw pixel data in RGBA order (4 bytes per pixel).
+/// * `width` — Image width in pixels.
+/// * `height` — Image height in pixels.
+/// * `format` — Target image encoding format (applied before Base64).
+///
+/// # Errors
+///
+/// Returns the same errors as [`encode_rgba`] — the Base64 step itself is
+/// infallible for bounded input.
+///
+/// # Implementation
+///
+/// Uses the [`base64`](https://docs.rs/base64/0.22/base64/) crate’s
+/// `BASE64_STANDARD` engine (RFC 4648 § 4).
+pub fn encode_rgba_base64(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    format: ImageFormat,
+) -> Result<String, XshotError> {
+    let encoded = encode_rgba(rgba, width, height, format)?;
+
+    let base64_str = BASE64_STANDARD.encode(&encoded);
+
+    debug!(
+        "{format} base64 encoding complete: {width}×{height} → {} chars",
+        base64_str.len()
+    );
+
+    Ok(base64_str)
 }
 
 /// Returns a rough estimate of the encoded output size to pre-allocate the
@@ -237,6 +280,26 @@ mod tests {
     fn encode_overflow_dimensions_fails() {
         // u32::MAX × u32::MAX × 4 overflows usize
         let result = encode_rgba(&[], u32::MAX, u32::MAX, ImageFormat::Png);
+        assert!(result.is_err());
+    }
+
+    // -- Base64 -------------------------------------------------------------
+
+    #[test]
+    fn encode_rgba_base64_1x1_png() {
+        let rgba = [255u8, 0, 0, 255];
+        let b64 = encode_rgba_base64(&rgba, 1, 1, ImageFormat::Png)
+            .expect("base64 PNG encoding should succeed");
+        // Decode and verify PNG magic bytes survive the round-trip.
+        let decoded = BASE64_STANDARD
+            .decode(&b64)
+            .expect("output should be valid base64");
+        assert!(decoded.starts_with(&[0x89, b'P', b'N', b'G']));
+    }
+
+    #[test]
+    fn encode_rgba_base64_zero_width_fails() {
+        let result = encode_rgba_base64(&[], 0, 1, ImageFormat::Png);
         assert!(result.is_err());
     }
 }
