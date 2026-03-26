@@ -42,11 +42,27 @@
 //! - `tokio::task::spawn_blocking` — offloads synchronous work
 
 use log::debug;
+use xcap::image::RgbaImage;
 use xshot_domain::{
     Base64CaptureResult, Base64Screenshot, Bounds, CaptureResult, ImageFormat, MonitorInfo,
     Screenshot, Size, XshotError,
 };
 use xshot_utils::{encode_rgba, encode_rgba_base64};
+
+// ---------------------------------------------------------------------------
+// Internal raw-capture types
+// ---------------------------------------------------------------------------
+
+/// The raw result of a single monitor capture — monitor metadata paired with
+/// the unencoded RGBA pixel buffer straight from the OS.
+///
+/// This is an internal type that never leaves the core layer. Public
+/// functions consume it and apply the requested encoding (binary or Base64)
+/// before returning a domain result type.
+struct RawCapture {
+    info: MonitorInfo,
+    image: RgbaImage,
+}
 
 /// Converts xcap's reported geometry to physical pixels.
 ///
@@ -297,6 +313,150 @@ pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
     .map_err(|e| XshotError::internal(format!("monitor lookup task panicked: {e}")))?
 }
 
+// ---------------------------------------------------------------------------
+// Internal raw-capture helpers
+// ---------------------------------------------------------------------------
+
+/// Finds the monitor with the given `id`, captures its screen contents, and
+/// returns the raw RGBA pixel buffer alongside normalised metadata.
+///
+/// This is the single point where OS monitor lookup + capture happens for
+/// single-monitor operations. Public functions call this and then apply the
+/// requested encoding.
+///
+/// # Errors
+///
+/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`XshotError::MonitorNotFound`] if no monitor matches the `id`.
+/// - [`XshotError::CaptureFailed`] if the OS capture call fails.
+fn raw_capture_monitor(id: u32) -> Result<RawCapture, XshotError> {
+    let monitors = xcap::Monitor::all()
+        .map_err(|e| XshotError::resource_unavailable(format!("failed to list monitors: {e}")))?;
+
+    let xcap_monitor = monitors
+        .iter()
+        .find(|m| m.id().is_ok_and(|mid| mid == id))
+        .ok_or_else(|| XshotError::monitor_not_found(id))?;
+
+    let info = monitor_info(xcap_monitor)?;
+
+    debug!(
+        "capturing monitor {id} ({}\u{00d7}{})",
+        info.physical.width, info.physical.height,
+    );
+
+    let image = xcap_monitor
+        .capture_image()
+        .map_err(|e| XshotError::capture_failed(format!("monitor {id}: {e}")))?;
+
+    Ok(RawCapture { info, image })
+}
+
+/// Captures the screen contents of every connected monitor and returns the
+/// raw RGBA pixel buffers alongside normalised metadata.
+///
+/// This is the single point where OS monitor enumeration + capture happens
+/// for multi-monitor operations. Public functions call this and then apply
+/// the requested encoding to each result.
+///
+/// # Errors
+///
+/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`XshotError::CaptureFailed`] if any individual capture fails.
+fn raw_capture_all_monitors() -> Result<Vec<RawCapture>, XshotError> {
+    let monitors = xcap::Monitor::all()
+        .map_err(|e| XshotError::resource_unavailable(format!("failed to list monitors: {e}")))?;
+
+    debug!("capturing all {} monitor(s)", monitors.len());
+
+    let mut results = Vec::with_capacity(monitors.len());
+
+    for m in &monitors {
+        let info = monitor_info(m)?;
+        let mid = info.id;
+
+        let image = m
+            .capture_image()
+            .map_err(|e| XshotError::capture_failed(format!("monitor {mid}: {e}")))?;
+
+        results.push(RawCapture { info, image });
+    }
+
+    Ok(results)
+}
+
+// ---------------------------------------------------------------------------
+// Internal encoding helpers
+// ---------------------------------------------------------------------------
+
+/// Encodes a [`RawCapture`] into a [`CaptureResult`] with binary image data.
+fn encode_capture(raw: RawCapture, format: ImageFormat) -> Result<CaptureResult, XshotError> {
+    let data = encode_rgba(
+        raw.image.as_raw(),
+        raw.image.width(),
+        raw.image.height(),
+        format,
+    )?;
+
+    debug!(
+        "encoded monitor {}: {}\u{00d7}{} \u{2192} {} bytes {format}",
+        raw.info.id,
+        raw.image.width(),
+        raw.image.height(),
+        data.len(),
+    );
+
+    Ok(CaptureResult {
+        monitor: raw.info,
+        screenshot: Screenshot {
+            size: Size {
+                width: raw.image.width(),
+                height: raw.image.height(),
+            },
+            format,
+            data,
+        },
+    })
+}
+
+/// Encodes a [`RawCapture`] into a [`Base64CaptureResult`] with a Base64
+/// string.
+fn encode_capture_base64(
+    raw: RawCapture,
+    format: ImageFormat,
+) -> Result<Base64CaptureResult, XshotError> {
+    let data = encode_rgba_base64(
+        raw.image.as_raw(),
+        raw.image.width(),
+        raw.image.height(),
+        format,
+    )?;
+
+    debug!(
+        "encoded monitor {} (base64): {}\u{00d7}{} \u{2192} {} chars {format}",
+        raw.info.id,
+        raw.image.width(),
+        raw.image.height(),
+        data.len(),
+    );
+
+    Ok(Base64CaptureResult {
+        monitor: raw.info,
+        screenshot: Base64Screenshot {
+            size: Size {
+                width: raw.image.width(),
+                height: raw.image.height(),
+            },
+            format,
+            data,
+        },
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Public capture API
+// ---------------------------------------------------------------------------
+
 /// Captures an encoded screenshot of the monitor with the given `id`.
 ///
 /// The capture and image encoding both run on a blocking thread.
@@ -314,46 +474,8 @@ pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
 /// - [`XshotError::InternalError`] if the blocking task panics.
 pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResult, XshotError> {
     tokio::task::spawn_blocking(move || {
-        let monitors = xcap::Monitor::all().map_err(|e| {
-            XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
-        })?;
-
-        let xcap_monitor = monitors
-            .iter()
-            .find(|m| m.id().is_ok_and(|mid| mid == id))
-            .ok_or_else(|| XshotError::monitor_not_found(id))?;
-
-        let info = monitor_info(xcap_monitor)?;
-
-        debug!(
-            "capturing monitor {id} ({}\u{00d7}{})",
-            info.physical.width, info.physical.height,
-        );
-
-        let image = xcap_monitor
-            .capture_image()
-            .map_err(|e| XshotError::capture_failed(format!("monitor {id}: {e}")))?;
-
-        let data = encode_rgba(image.as_raw(), image.width(), image.height(), format)?;
-
-        debug!(
-            "captured monitor {id}: {}\u{00d7}{} \u{2192} {} bytes {format}",
-            image.width(),
-            image.height(),
-            data.len(),
-        );
-
-        Ok(CaptureResult {
-            monitor: info,
-            screenshot: Screenshot {
-                size: Size {
-                    width: image.width(),
-                    height: image.height(),
-                },
-                format,
-                data,
-            },
-        })
+        let raw = raw_capture_monitor(id)?;
+        encode_capture(raw, format)
     })
     .await
     .map_err(|e| XshotError::internal(format!("capture task panicked: {e}")))?
@@ -376,45 +498,13 @@ pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResu
 /// - [`XshotError::InternalError`] if the blocking task panics.
 pub async fn capture_all_monitors(format: ImageFormat) -> Result<Vec<CaptureResult>, XshotError> {
     tokio::task::spawn_blocking(move || {
-        let monitors = xcap::Monitor::all().map_err(|e| {
-            XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
-        })?;
-
-        debug!("capturing all {} monitor(s)", monitors.len());
-
-        let mut results = Vec::with_capacity(monitors.len());
-
-        for m in &monitors {
-            let info = monitor_info(m)?;
-            let mid = info.id;
-
-            let image = m
-                .capture_image()
-                .map_err(|e| XshotError::capture_failed(format!("monitor {mid}: {e}")))?;
-
-            let data = encode_rgba(image.as_raw(), image.width(), image.height(), format)?;
-
-            debug!(
-                "captured monitor {mid}: {}\u{00d7}{} \u{2192} {} bytes {format}",
-                image.width(),
-                image.height(),
-                data.len(),
-            );
-
-            results.push(CaptureResult {
-                monitor: info,
-                screenshot: Screenshot {
-                    size: Size {
-                        width: image.width(),
-                        height: image.height(),
-                    },
-                    format,
-                    data,
-                },
-            });
-        }
-
-        debug!("captured {} screenshot(s) total", results.len());
+        let raws = raw_capture_all_monitors()?;
+        let count = raws.len();
+        let results = raws
+            .into_iter()
+            .map(|raw| encode_capture(raw, format))
+            .collect::<Result<Vec<_>, _>>()?;
+        debug!("captured {count} screenshot(s) total");
         Ok(results)
     })
     .await
@@ -444,46 +534,8 @@ pub async fn capture_monitor_base64(
     format: ImageFormat,
 ) -> Result<Base64CaptureResult, XshotError> {
     tokio::task::spawn_blocking(move || {
-        let monitors = xcap::Monitor::all().map_err(|e| {
-            XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
-        })?;
-
-        let xcap_monitor = monitors
-            .iter()
-            .find(|m| m.id().is_ok_and(|mid| mid == id))
-            .ok_or_else(|| XshotError::monitor_not_found(id))?;
-
-        let info = monitor_info(xcap_monitor)?;
-
-        debug!(
-            "capturing monitor {id} for base64 ({}\u{00d7}{})",
-            info.physical.width, info.physical.height,
-        );
-
-        let image = xcap_monitor
-            .capture_image()
-            .map_err(|e| XshotError::capture_failed(format!("monitor {id}: {e}")))?;
-
-        let data = encode_rgba_base64(image.as_raw(), image.width(), image.height(), format)?;
-
-        debug!(
-            "captured monitor {id} (base64): {}\u{00d7}{} \u{2192} {} chars {format}",
-            image.width(),
-            image.height(),
-            data.len(),
-        );
-
-        Ok(Base64CaptureResult {
-            monitor: info,
-            screenshot: Base64Screenshot {
-                size: Size {
-                    width: image.width(),
-                    height: image.height(),
-                },
-                format,
-                data,
-            },
-        })
+        let raw = raw_capture_monitor(id)?;
+        encode_capture_base64(raw, format)
     })
     .await
     .map_err(|e| XshotError::internal(format!("base64 capture task panicked: {e}")))?
@@ -509,45 +561,13 @@ pub async fn capture_all_monitors_base64(
     format: ImageFormat,
 ) -> Result<Vec<Base64CaptureResult>, XshotError> {
     tokio::task::spawn_blocking(move || {
-        let monitors = xcap::Monitor::all().map_err(|e| {
-            XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
-        })?;
-
-        debug!("capturing all {} monitor(s) for base64", monitors.len());
-
-        let mut results = Vec::with_capacity(monitors.len());
-
-        for m in &monitors {
-            let info = monitor_info(m)?;
-            let mid = info.id;
-
-            let image = m
-                .capture_image()
-                .map_err(|e| XshotError::capture_failed(format!("monitor {mid}: {e}")))?;
-
-            let data = encode_rgba_base64(image.as_raw(), image.width(), image.height(), format)?;
-
-            debug!(
-                "captured monitor {mid} (base64): {}\u{00d7}{} \u{2192} {} chars {format}",
-                image.width(),
-                image.height(),
-                data.len(),
-            );
-
-            results.push(Base64CaptureResult {
-                monitor: info,
-                screenshot: Base64Screenshot {
-                    size: Size {
-                        width: image.width(),
-                        height: image.height(),
-                    },
-                    format,
-                    data,
-                },
-            });
-        }
-
-        debug!("captured {} base64 screenshot(s) total", results.len());
+        let raws = raw_capture_all_monitors()?;
+        let count = raws.len();
+        let results = raws
+            .into_iter()
+            .map(|raw| encode_capture_base64(raw, format))
+            .collect::<Result<Vec<_>, _>>()?;
+        debug!("captured {count} base64 screenshot(s) total");
         Ok(results)
     })
     .await
