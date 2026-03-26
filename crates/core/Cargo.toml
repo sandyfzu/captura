@@ -11,5 +11,4 @@ xshot-domain = { workspace = true }
 xshot-utils = { workspace = true }
 xcap = { workspace = true }
 tokio = { workspace = true }
-thiserror = { workspace = true }
 log = { workspace = true }

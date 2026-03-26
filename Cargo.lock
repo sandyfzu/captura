@@ -3269,7 +3269,6 @@ name = "xshot-core"
 version = "0.0.0"
 dependencies = [
  "log",
- "thiserror",
  "tokio",
  "xcap",
  "xshot-domain",
@@ -3289,7 +3288,6 @@ version = "0.0.0"
 dependencies = [
  "image",
  "log",
- "thiserror",
  "xshot-domain",
 ]
 

@@ -8,6 +8,5 @@ description = "Shared utilities for xshot — encoding, error conversion, and cr
 
 [dependencies]
 xshot-domain = { workspace = true }
-thiserror = { workspace = true }
 image = { workspace = true }
 log = { workspace = true }

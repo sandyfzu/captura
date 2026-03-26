@@ -37,6 +37,9 @@ use xshot_domain::{ImageFormat, XshotError};
 ///
 /// # Errors
 ///
+/// Returns [`XshotError::InvalidArgument`] if:
+/// - Either `width` or `height` is zero.
+///
 /// Returns [`XshotError::EncodingError`] if:
 /// - The dimensions overflow when computing the expected buffer length.
 /// - The buffer length does not match `width × height × 4`.
@@ -53,6 +56,12 @@ pub fn encode_rgba(
     height: u32,
     format: ImageFormat,
 ) -> Result<Vec<u8>, XshotError> {
+    if width == 0 || height == 0 {
+        return Err(XshotError::invalid_argument(format!(
+            "image dimensions must be non-zero, got {width}×{height}"
+        )));
+    }
+
     let expected_len = (width as usize)
         .checked_mul(height as usize)
         .and_then(|n| n.checked_mul(4))
@@ -209,6 +218,18 @@ mod tests {
         // 2×2 requires 16 bytes; we only provide 4
         let rgba = [0u8; 4];
         let result = encode_rgba(&rgba, 2, 2, ImageFormat::Png);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn encode_zero_width_fails() {
+        let result = encode_rgba(&[], 0, 1, ImageFormat::Png);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn encode_zero_height_fails() {
+        let result = encode_rgba(&[], 1, 0, ImageFormat::Png);
         assert!(result.is_err());
     }
 

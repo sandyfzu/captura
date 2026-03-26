@@ -148,6 +148,13 @@ pub enum ImageFormat {
     Avif,
 }
 
+impl Default for ImageFormat {
+    /// Returns [`ImageFormat::Png`] — the default encoding format.
+    fn default() -> Self {
+        Self::Png
+    }
+}
+
 impl ImageFormat {
     /// Returns the IANA media type (MIME type) for this format.
     ///
