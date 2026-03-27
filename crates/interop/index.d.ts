@@ -72,7 +72,7 @@ export interface Bounds {
  * const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
  * ```
  */
-export declare function captureAllMonitors(format?: ImageFormat | undefined | null): Promise<Array<CaptureResult>>
+export declare function captureAllMonitors(format?: ImageFormat | (string & {})): Promise<Array<CaptureResult>>
 
 /**
  * Captures Base64-encoded screenshots of every connected monitor.
@@ -85,7 +85,7 @@ export declare function captureAllMonitors(format?: ImageFormat | undefined | nu
  * const results: Base64CaptureResult[] = await captureAllMonitorsBase64()
  * ```
  */
-export declare function captureAllMonitorsBase64(format?: ImageFormat | undefined | null): Promise<Array<Base64CaptureResult>>
+export declare function captureAllMonitorsBase64(format?: ImageFormat | (string & {})): Promise<Array<Base64CaptureResult>>
 
 /**
  * Captures an encoded screenshot of the monitor with the given `id`.
@@ -107,7 +107,7 @@ export declare function captureAllMonitorsBase64(format?: ImageFormat | undefine
  * const jpg: CaptureResult = await captureMonitor(1, 'Jpeg')
  * ```
  */
-export declare function captureMonitor(id: number, format?: ImageFormat | undefined | null): Promise<CaptureResult>
+export declare function captureMonitor(id: number, format?: ImageFormat | (string & {})): Promise<CaptureResult>
 
 /**
  * Captures a screenshot and returns it as a Base64-encoded string.
@@ -121,7 +121,7 @@ export declare function captureMonitor(id: number, format?: ImageFormat | undefi
  * const dataUri = `data:image/png;base64,${result.screenshot.data}`
  * ```
  */
-export declare function captureMonitorBase64(id: number, format?: ImageFormat | undefined | null): Promise<Base64CaptureResult>
+export declare function captureMonitorBase64(id: number, format?: ImageFormat | (string & {})): Promise<Base64CaptureResult>
 
 /**
  * The result of a capture operation — pairs monitor metadata with the

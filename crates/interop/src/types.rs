@@ -196,17 +196,6 @@ impl From<ImageFormat> for JsImageFormat {
     }
 }
 
-impl From<JsImageFormat> for ImageFormat {
-    fn from(f: JsImageFormat) -> Self {
-        match f {
-            JsImageFormat::Png => Self::Png,
-            JsImageFormat::Jpeg => Self::Jpeg,
-            JsImageFormat::WebP => Self::WebP,
-            JsImageFormat::Avif => Self::Avif,
-        }
-    }
-}
-
 /// A captured screenshot — the image payload with its dimensions and format.
 ///
 /// `data` contains encoded image bytes in the format indicated by `format`

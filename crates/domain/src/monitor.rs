@@ -202,6 +202,49 @@ impl std::fmt::Display for ImageFormat {
     }
 }
 
+impl std::str::FromStr for ImageFormat {
+    type Err = crate::XshotError;
+
+    /// Parses an image format from a string, **case-insensitively**.
+    ///
+    /// Accepts canonical names (`"Png"`, `"Jpeg"`, `"WebP"`, `"Avif"`) as
+    /// well as any casing variant (`"png"`, `"PNG"`, `"jPeG"`, etc.).
+    /// The common alias `"jpg"` (any casing) is also accepted as [`ImageFormat::Jpeg`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`XshotError::InvalidArgument`] if the string does not match
+    /// any supported format.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use xshot_domain::ImageFormat;
+    ///
+    /// assert_eq!("png".parse::<ImageFormat>().unwrap(), ImageFormat::Png);
+    /// assert_eq!("JPEG".parse::<ImageFormat>().unwrap(), ImageFormat::Jpeg);
+    /// assert_eq!("jpg".parse::<ImageFormat>().unwrap(), ImageFormat::Jpeg);
+    /// assert_eq!("webp".parse::<ImageFormat>().unwrap(), ImageFormat::WebP);
+    /// assert_eq!("AVIF".parse::<ImageFormat>().unwrap(), ImageFormat::Avif);
+    /// assert!("bmp".parse::<ImageFormat>().is_err());
+    /// ```
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("png") {
+            Ok(Self::Png)
+        } else if s.eq_ignore_ascii_case("jpeg") || s.eq_ignore_ascii_case("jpg") {
+            Ok(Self::Jpeg)
+        } else if s.eq_ignore_ascii_case("webp") {
+            Ok(Self::WebP)
+        } else if s.eq_ignore_ascii_case("avif") {
+            Ok(Self::Avif)
+        } else {
+            Err(crate::XshotError::invalid_argument(format!(
+                "unsupported image format {s:?} — expected one of: png, jpeg, jpg, webp, avif (case-insensitive)"
+            )))
+        }
+    }
+}
+
 /// A captured screenshot — the image payload with its dimensions and format.
 ///
 /// `data` contains encoded image bytes in the format indicated by `format`
@@ -273,4 +316,109 @@ pub struct Base64CaptureResult {
     pub monitor: MonitorInfo,
     /// The captured image with its dimensions and Base64-encoded data.
     pub screenshot: Base64Screenshot,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- ImageFormat::from_str -------------------------------------------------
+
+    #[test]
+    fn parse_png_case_insensitive() {
+        for input in ["png", "Png", "PNG", "pNg", "pNG", "PnG"] {
+            assert_eq!(
+                input.parse::<ImageFormat>().unwrap(),
+                ImageFormat::Png,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_jpeg_case_insensitive() {
+        for input in ["jpeg", "Jpeg", "JPEG", "JpEg", "jPeG"] {
+            assert_eq!(
+                input.parse::<ImageFormat>().unwrap(),
+                ImageFormat::Jpeg,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_jpg_alias_case_insensitive() {
+        for input in ["jpg", "Jpg", "JPG", "jPg", "jpG"] {
+            assert_eq!(
+                input.parse::<ImageFormat>().unwrap(),
+                ImageFormat::Jpeg,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_webp_case_insensitive() {
+        for input in ["webp", "WebP", "WEBP", "Webp", "wEbP"] {
+            assert_eq!(
+                input.parse::<ImageFormat>().unwrap(),
+                ImageFormat::WebP,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_avif_case_insensitive() {
+        for input in ["avif", "Avif", "AVIF", "aViF", "AVif"] {
+            assert_eq!(
+                input.parse::<ImageFormat>().unwrap(),
+                ImageFormat::Avif,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_unknown_format_returns_invalid_argument() {
+        for input in ["bmp", "gif", "tiff", "svg", "", "pn", "jpe", "web"] {
+            let err = input.parse::<ImageFormat>().unwrap_err();
+            assert_eq!(
+                err.code(),
+                crate::XshotErrorCode::InvalidArgument,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    // -- ImageFormat helpers ---------------------------------------------------
+
+    #[test]
+    fn default_is_png() {
+        assert_eq!(ImageFormat::default(), ImageFormat::Png);
+    }
+
+    #[test]
+    fn mime_types() {
+        assert_eq!(ImageFormat::Png.mime_type(), "image/png");
+        assert_eq!(ImageFormat::Jpeg.mime_type(), "image/jpeg");
+        assert_eq!(ImageFormat::WebP.mime_type(), "image/webp");
+        assert_eq!(ImageFormat::Avif.mime_type(), "image/avif");
+    }
+
+    #[test]
+    fn extensions() {
+        assert_eq!(ImageFormat::Png.extension(), "png");
+        assert_eq!(ImageFormat::Jpeg.extension(), "jpg");
+        assert_eq!(ImageFormat::WebP.extension(), "webp");
+        assert_eq!(ImageFormat::Avif.extension(), "avif");
+    }
+
+    #[test]
+    fn display_names() {
+        assert_eq!(ImageFormat::Png.to_string(), "PNG");
+        assert_eq!(ImageFormat::Jpeg.to_string(), "JPEG");
+        assert_eq!(ImageFormat::WebP.to_string(), "WebP");
+        assert_eq!(ImageFormat::Avif.to_string(), "AVIF");
+    }
 }

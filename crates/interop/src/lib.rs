@@ -18,7 +18,7 @@ mod types;
 
 use napi_derive::napi;
 
-use types::{JsBase64CaptureResult, JsCaptureResult, JsImageFormat, JsMonitor};
+use types::{JsBase64CaptureResult, JsCaptureResult, JsMonitor};
 use xshot_domain::ImageFormat;
 
 // ---------------------------------------------------------------------------
@@ -72,9 +72,9 @@ pub async fn get_monitor_by_id(id: u32) -> napi::Result<JsMonitor> {
 #[napi]
 pub async fn capture_monitor(
     id: u32,
-    format: Option<JsImageFormat>,
+    #[napi(ts_arg_type = "ImageFormat | (string & {})")] format: Option<String>,
 ) -> napi::Result<JsCaptureResult> {
-    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let fmt = parse_format(format)?;
     let result = xshot_core::capture_monitor(id, fmt)
         .await
         .map_err(error::to_napi)?;
@@ -92,9 +92,9 @@ pub async fn capture_monitor(
 /// ```
 #[napi]
 pub async fn capture_all_monitors(
-    format: Option<JsImageFormat>,
+    #[napi(ts_arg_type = "ImageFormat | (string & {})")] format: Option<String>,
 ) -> napi::Result<Vec<JsCaptureResult>> {
-    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let fmt = parse_format(format)?;
     let results = xshot_core::capture_all_monitors(fmt)
         .await
         .map_err(error::to_napi)?;
@@ -114,9 +114,9 @@ pub async fn capture_all_monitors(
 #[napi]
 pub async fn capture_monitor_base64(
     id: u32,
-    format: Option<JsImageFormat>,
+    #[napi(ts_arg_type = "ImageFormat | (string & {})")] format: Option<String>,
 ) -> napi::Result<JsBase64CaptureResult> {
-    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let fmt = parse_format(format)?;
     let result = xshot_core::capture_monitor_base64(id, fmt)
         .await
         .map_err(error::to_napi)?;
@@ -134,9 +134,9 @@ pub async fn capture_monitor_base64(
 /// ```
 #[napi]
 pub async fn capture_all_monitors_base64(
-    format: Option<JsImageFormat>,
+    #[napi(ts_arg_type = "ImageFormat | (string & {})")] format: Option<String>,
 ) -> napi::Result<Vec<JsBase64CaptureResult>> {
-    let fmt = format.map(ImageFormat::from).unwrap_or(ImageFormat::Png);
+    let fmt = parse_format(format)?;
     let results = xshot_core::capture_all_monitors_base64(fmt)
         .await
         .map_err(error::to_napi)?;
@@ -144,4 +144,22 @@ pub async fn capture_all_monitors_base64(
         .into_iter()
         .map(JsBase64CaptureResult::from)
         .collect())
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+/// Parses an optional format string into an [`ImageFormat`], defaulting to
+/// PNG when `None` is passed. Parsing is **case-insensitive** — `"png"`,
+/// `"Png"`, `"PNG"` all resolve to [`ImageFormat::Png`], and `"jpg"` is
+/// accepted as an alias for [`ImageFormat::Jpeg`].
+///
+/// Returns a [`napi::Error`] with an `INVALID_ARGUMENT` code if the string
+/// does not match any supported format.
+fn parse_format(format: Option<String>) -> napi::Result<ImageFormat> {
+    match format {
+        None => Ok(ImageFormat::Png),
+        Some(s) => s.parse::<ImageFormat>().map_err(error::to_napi),
+    }
 }
