@@ -1,6 +1,6 @@
 {
   "name": "xshot",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API",
   "main": "index.js",
   "types": "index.d.ts",

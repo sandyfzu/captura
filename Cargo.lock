@@ -3261,7 +3261,7 @@ checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
 
 [[package]]
 name = "xshot"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "napi",
  "napi-build",
@@ -3272,7 +3272,7 @@ dependencies = [
 
 [[package]]
 name = "xshot-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "log",
  "tokio",
@@ -3283,14 +3283,14 @@ dependencies = [
 
 [[package]]
 name = "xshot-domain"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "xshot-utils"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "base64",
  "image",
