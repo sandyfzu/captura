@@ -256,11 +256,95 @@ mod tests {
 
     #[test]
     fn display_is_human_readable() {
-        let err = XshotError::monitor_not_found(42);
-        assert_eq!(err.to_string(), "Monitor not found: no monitor with id 42");
+        // Verify the `#[error("...")]` template for every variant.
+        // Source: thiserror v2 — https://docs.rs/thiserror/2/thiserror/#display
+        assert_eq!(
+            XshotError::initialization("x").to_string(),
+            "Initialization failed: x",
+        );
+        assert_eq!(
+            XshotError::monitor_not_found(42).to_string(),
+            "Monitor not found: no monitor with id 42",
+        );
+        assert_eq!(
+            XshotError::capture_failed("device busy").to_string(),
+            "Capture failed: device busy",
+        );
+        assert_eq!(
+            XshotError::permission_denied("screen recording").to_string(),
+            "Permission denied: screen recording",
+        );
+        assert_eq!(
+            XshotError::platform_not_supported("Wayland").to_string(),
+            "Platform not supported: Wayland",
+        );
+        assert_eq!(
+            XshotError::encoding_error("corrupt buffer").to_string(),
+            "Encoding error: corrupt buffer",
+        );
+        assert_eq!(
+            XshotError::invalid_argument("bad format").to_string(),
+            "Invalid argument: bad format",
+        );
+        assert_eq!(
+            XshotError::internal("unexpected").to_string(),
+            "Internal error: unexpected",
+        );
+        assert_eq!(
+            XshotError::timeout("5s elapsed").to_string(),
+            "Timeout: 5s elapsed",
+        );
+        assert_eq!(
+            XshotError::resource_unavailable("monitor disconnected").to_string(),
+            "Resource unavailable: monitor disconnected",
+        );
+    }
 
-        let err = XshotError::capture_failed("device busy");
-        assert_eq!(err.to_string(), "Capture failed: device busy");
+    #[test]
+    fn convenience_constructors_preserve_message() {
+        // All constructors accept `impl Into<String>` — verify both
+        // &str and String inputs are preserved verbatim.
+        let msg = "hello world";
+        assert!(XshotError::initialization(msg).to_string().contains(msg));
+        assert!(
+            XshotError::capture_failed(msg.to_owned())
+                .to_string()
+                .contains(msg)
+        );
+        assert!(XshotError::permission_denied(msg).to_string().contains(msg));
+        assert!(
+            XshotError::platform_not_supported(msg)
+                .to_string()
+                .contains(msg)
+        );
+        assert!(XshotError::encoding_error(msg).to_string().contains(msg));
+        assert!(XshotError::invalid_argument(msg).to_string().contains(msg));
+        assert!(XshotError::internal(msg).to_string().contains(msg));
+        assert!(XshotError::timeout(msg).to_string().contains(msg));
+        assert!(
+            XshotError::resource_unavailable(msg)
+                .to_string()
+                .contains(msg)
+        );
+    }
+
+    #[test]
+    fn monitor_not_found_includes_id() {
+        let err = XshotError::monitor_not_found(999);
+        assert!(
+            err.to_string().contains("999"),
+            "expected message to contain monitor ID 999, got: {err}"
+        );
+    }
+
+    /// `XshotError` must be Send + Sync because it crosses async
+    /// boundaries via `tokio::task::spawn_blocking`.
+    ///
+    /// Source: https://doc.rust-lang.org/std/marker/trait.Send.html
+    #[test]
+    fn error_is_send_and_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<XshotError>();
     }
 
     #[test]

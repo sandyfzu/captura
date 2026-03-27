@@ -302,4 +302,116 @@ mod tests {
         let result = encode_rgba_base64(&[], 0, 1, ImageFormat::Png);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn encode_rgba_base64_zero_height_fails() {
+        let result = encode_rgba_base64(&[], 1, 0, ImageFormat::Png);
+        assert!(result.is_err());
+    }
+
+    // -- Base64 for non-PNG formats -----------------------------------------
+
+    #[test]
+    fn encode_jpeg_base64_roundtrip() {
+        let rgba = red_2x2();
+        let b64 = encode_rgba_base64(&rgba, 2, 2, ImageFormat::Jpeg)
+            .expect("JPEG base64 encoding should succeed");
+        let decoded = BASE64_STANDARD
+            .decode(&b64)
+            .expect("output should be valid base64");
+        // JPEG SOI marker: 0xFF 0xD8
+        assert!(decoded.starts_with(&[0xFF, 0xD8]));
+    }
+
+    #[test]
+    fn encode_webp_base64_roundtrip() {
+        let rgba = red_2x2();
+        let b64 = encode_rgba_base64(&rgba, 2, 2, ImageFormat::WebP)
+            .expect("WebP base64 encoding should succeed");
+        let decoded = BASE64_STANDARD
+            .decode(&b64)
+            .expect("output should be valid base64");
+        assert!(decoded.starts_with(b"RIFF"));
+    }
+
+    #[test]
+    fn encode_avif_base64_roundtrip() {
+        let rgba = red_2x2();
+        let b64 = encode_rgba_base64(&rgba, 2, 2, ImageFormat::Avif)
+            .expect("AVIF base64 encoding should succeed");
+        let decoded = BASE64_STANDARD
+            .decode(&b64)
+            .expect("output should be valid base64");
+        assert!(!decoded.is_empty());
+    }
+
+    // -- Additional error cases ---------------------------------------------
+
+    #[test]
+    fn encode_both_dims_zero_fails() {
+        let result = encode_rgba(&[], 0, 0, ImageFormat::Png);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn encode_buffer_too_large_fails() {
+        // 1×1 RGBA requires exactly 4 bytes; provide 8.
+        let result = encode_rgba(&[0u8; 8], 1, 1, ImageFormat::Png);
+        assert!(result.is_err());
+    }
+
+    // -- Error code classification ------------------------------------------
+
+    /// Zero dimensions → `InvalidArgument` (caller's fault).
+    #[test]
+    fn error_code_zero_dims_is_invalid_argument() {
+        let err = encode_rgba(&[], 0, 1, ImageFormat::Png).unwrap_err();
+        assert_eq!(err.code(), XshotError::invalid_argument("").code());
+    }
+
+    /// Buffer/dimension mismatch → `EncodingError` (data integrity).
+    #[test]
+    fn error_code_buffer_mismatch_is_encoding_error() {
+        let err = encode_rgba(&[0u8; 4], 2, 2, ImageFormat::Png).unwrap_err();
+        assert_eq!(err.code(), XshotError::encoding_error("").code());
+    }
+
+    /// Dimension overflow → `EncodingError`.
+    #[test]
+    fn error_code_overflow_is_encoding_error() {
+        let err = encode_rgba(&[], u32::MAX, u32::MAX, ImageFormat::Png).unwrap_err();
+        assert_eq!(err.code(), XshotError::encoding_error("").code());
+    }
+
+    // -- Larger image -------------------------------------------------------
+
+    /// Encode a 100×100 solid red image to verify encoding works
+    /// beyond trivial 1×1 / 2×2 sizes and the pre-allocation heuristic
+    /// in `estimate_output_size` doesn't cause issues.
+    #[test]
+    fn encode_png_100x100() {
+        let rgba: Vec<u8> = [255, 0, 0, 255].repeat(100 * 100);
+        let png = encode_rgba(&rgba, 100, 100, ImageFormat::Png)
+            .expect("100×100 PNG encoding should succeed");
+        assert!(png.starts_with(&[0x89, b'P', b'N', b'G']));
+    }
+
+    // -- JPEG alpha stripping -----------------------------------------------
+
+    /// JPEG does not support alpha. Verify that a semi-transparent image
+    /// encodes successfully — this exercises the internal `rgba_to_rgb` path.
+    #[test]
+    fn jpeg_encodes_semi_transparent_pixels() {
+        // 2×2 image: half transparent red, half opaque blue.
+        #[rustfmt::skip]
+        let rgba: [u8; 16] = [
+            255, 0, 0, 128,   // semi-transparent red
+            255, 0, 0, 128,
+            0, 0, 255, 255,   // opaque blue
+            0, 0, 255, 255,
+        ];
+        let jpeg = encode_rgba(&rgba, 2, 2, ImageFormat::Jpeg)
+            .expect("JPEG should encode despite alpha channel");
+        assert!(jpeg.starts_with(&[0xFF, 0xD8]));
+    }
 }

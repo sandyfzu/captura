@@ -573,3 +573,117 @@ pub async fn capture_all_monitors_base64(
     .await
     .map_err(|e| XshotError::internal(format!("base64 capture-all task panicked: {e}")))?
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- Coordinate normalisation (pure math) --------------------------------
+    //
+    // These test `to_physical_dimensions` and `to_logical_dimensions`, which
+    // are the core of the platform-normalisation logic.
+    //
+    // On macOS/Linux (the `#[cfg(not(target_os = "windows"))]` path):
+    //   physical = raw × scale_factor
+    //   logical  = raw  (passthrough)
+    //
+    // On Windows (`#[cfg(target_os = "windows")]` path):
+    //   physical = raw  (passthrough)
+    //   logical  = raw ÷ scale_factor
+    //
+    // The active path depends on the build target, so these tests verify
+    // whichever variant is compiled.
+
+    #[test]
+    fn physical_dims_scale_1x() {
+        // At 1× scale, physical should equal raw on all platforms.
+        let (x, y, w, h) = to_physical_dimensions(100, 200, 1920, 1080, 1.0);
+        assert_eq!((x, y, w, h), (100, 200, 1920, 1080));
+    }
+
+    #[test]
+    fn logical_dims_scale_1x() {
+        // At 1× scale, logical should equal raw on all platforms.
+        let (x, y, w, h) = to_logical_dimensions(100, 200, 1920, 1080, 1.0);
+        assert_eq!((x, y, w, h), (100, 200, 1920, 1080));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    mod non_windows {
+        use super::*;
+
+        #[test]
+        fn physical_dims_scale_2x() {
+            // macOS Retina / Linux HiDPI: raw is logical, physical = raw × 2.
+            let (x, y, w, h) = to_physical_dimensions(0, 0, 1280, 800, 2.0);
+            assert_eq!((x, y, w, h), (0, 0, 2560, 1600));
+        }
+
+        #[test]
+        fn physical_dims_with_offset() {
+            // Verify position is also scaled.
+            let (x, y, w, h) = to_physical_dimensions(100, 50, 1920, 1080, 2.0);
+            assert_eq!((x, y, w, h), (200, 100, 3840, 2160));
+        }
+
+        #[test]
+        fn physical_dims_fractional_scale() {
+            // 1.5× scale → verify rounding (uses round()).
+            // 1920 × 1.5 = 2880 (exact), 1080 × 1.5 = 1620 (exact).
+            let (_, _, w, h) = to_physical_dimensions(0, 0, 1920, 1080, 1.5);
+            assert_eq!((w, h), (2880, 1620));
+        }
+
+        #[test]
+        fn physical_dims_rounds_half_up() {
+            // 101 × 1.5 = 151.5 → rounds to 152 (round-half-to-even in f64,
+            // but .round() uses "round half away from zero").
+            // Source: https://doc.rust-lang.org/std/primitive.f64.html#method.round
+            let (_, _, w, _) = to_physical_dimensions(0, 0, 101, 1, 1.5);
+            assert_eq!(w, 152); // 151.5.round() = 152
+        }
+
+        #[test]
+        fn physical_dims_negative_position() {
+            // Multi-monitor setups can have negative coordinates.
+            let (x, y, _, _) = to_physical_dimensions(-1920, -100, 1920, 1080, 2.0);
+            assert_eq!((x, y), (-3840, -200));
+        }
+
+        #[test]
+        fn logical_dims_passthrough() {
+            // On macOS/Linux, logical = raw (no transformation).
+            let (x, y, w, h) = to_logical_dimensions(-50, 100, 2560, 1440, 2.0);
+            assert_eq!((x, y, w, h), (-50, 100, 2560, 1440));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    mod windows {
+        use super::*;
+
+        #[test]
+        fn physical_dims_passthrough() {
+            // On Windows, physical = raw (no transformation).
+            let (x, y, w, h) = to_physical_dimensions(0, 0, 2560, 1440, 2.0);
+            assert_eq!((x, y, w, h), (0, 0, 2560, 1440));
+        }
+
+        #[test]
+        fn logical_dims_scale_2x() {
+            // Windows: raw is physical, logical = raw ÷ 2.
+            let (x, y, w, h) = to_logical_dimensions(0, 0, 2560, 1600, 2.0);
+            assert_eq!((x, y, w, h), (0, 0, 1280, 800));
+        }
+
+        #[test]
+        fn logical_dims_negative_position() {
+            let (x, y, _, _) = to_logical_dimensions(-3840, -200, 1920, 1080, 2.0);
+            assert_eq!((x, y), (-1920, -100));
+        }
+    }
+}

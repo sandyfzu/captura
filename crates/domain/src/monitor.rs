@@ -391,6 +391,53 @@ mod tests {
         }
     }
 
+    #[test]
+    fn from_str_error_includes_input_and_valid_formats() {
+        let err = "bmp".parse::<ImageFormat>().unwrap_err();
+        let msg = err.to_string();
+        // The error message should contain the rejected input so the user
+        // can see what went wrong.
+        assert!(msg.contains("bmp"), "expected input in message: {msg}");
+        // It should also hint at the valid options.
+        assert!(msg.contains("png"), "expected valid format hint: {msg}");
+        assert!(msg.contains("jpeg"), "expected valid format hint: {msg}");
+        assert!(msg.contains("webp"), "expected valid format hint: {msg}");
+        assert!(msg.contains("avif"), "expected valid format hint: {msg}");
+    }
+
+    /// Every variant's `Display` output should round-trip through `FromStr`.
+    ///
+    /// This guarantees the string representation is self-consistent:
+    /// `format.to_string().parse()` always recovers the original variant.
+    #[test]
+    fn display_roundtrips_through_from_str() {
+        for format in [
+            ImageFormat::Png,
+            ImageFormat::Jpeg,
+            ImageFormat::WebP,
+            ImageFormat::Avif,
+        ] {
+            let display = format.to_string();
+            let parsed: ImageFormat = display
+                .parse()
+                .unwrap_or_else(|e| panic!("failed to parse Display output {display:?} back: {e}"));
+            assert_eq!(parsed, format, "roundtrip failed for {display:?}");
+        }
+    }
+
+    /// `ImageFormat` derives `Hash` — verify it works in a `HashSet`.
+    #[test]
+    fn image_format_usable_in_hash_set() {
+        use std::collections::HashSet;
+        let mut set = HashSet::new();
+        set.insert(ImageFormat::Png);
+        set.insert(ImageFormat::Jpeg);
+        set.insert(ImageFormat::Png); // duplicate
+        assert_eq!(set.len(), 2);
+        assert!(set.contains(&ImageFormat::Png));
+        assert!(set.contains(&ImageFormat::Jpeg));
+    }
+
     // -- ImageFormat helpers ---------------------------------------------------
 
     #[test]
