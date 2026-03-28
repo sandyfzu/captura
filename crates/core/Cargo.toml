@@ -3,6 +3,7 @@ name = "xshot-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 description = "Core xcap abstraction layer for xshot — platform-specific capture logic"
 

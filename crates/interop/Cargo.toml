@@ -3,6 +3,7 @@ name = "xshot"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 publish.workspace = true
 description = "NAPI-rs bindings for xshot — cross-platform screen capture for Node.js"
 

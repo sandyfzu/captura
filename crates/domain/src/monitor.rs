@@ -115,7 +115,8 @@ pub struct Size {
 /// The encoding format of a captured screenshot.
 ///
 /// Indicates how `Screenshot::data` is encoded. This is a closed set of
-/// formats that xshot supports — all backed by the [`image`] crate.
+/// formats that xshot supports — all backed by the
+/// [`image`](https://docs.rs/image/0.25/image/) crate.
 ///
 /// All formats use default encoder settings. For fine-grained control over
 /// encoding parameters (e.g. JPEG quality, AVIF speed), capture as PNG
@@ -213,8 +214,8 @@ impl std::str::FromStr for ImageFormat {
     ///
     /// # Errors
     ///
-    /// Returns [`XshotError::InvalidArgument`] if the string does not match
-    /// any supported format.
+    /// Returns [`XshotError::InvalidArgument`](crate::XshotError::InvalidArgument)
+    /// if the string does not match any supported format.
     ///
     /// # Examples
     ///
@@ -267,8 +268,8 @@ pub struct Screenshot {
 /// The result of a capture operation — pairs monitor metadata with a
 /// screenshot.
 ///
-/// Returned by [`capture_monitor`](xshot_core::capture_monitor) and
-/// [`capture_all_monitors`](xshot_core::capture_all_monitors).
+/// Returned by `capture_monitor` and `capture_all_monitors` in the
+/// `xshot_core` crate.
 #[derive(Debug, Clone)]
 pub struct CaptureResult {
     /// Metadata of the monitor this screenshot was captured from.
@@ -308,8 +309,8 @@ pub struct Base64Screenshot {
 /// The result of a capture-to-Base64 operation — pairs monitor metadata
 /// with a Base64-encoded screenshot.
 ///
-/// Returned by [`capture_monitor_base64`](xshot_core::capture_monitor_base64)
-/// and [`capture_all_monitors_base64`](xshot_core::capture_all_monitors_base64).
+/// Returned by `capture_monitor_base64` and `capture_all_monitors_base64`
+/// in the `xshot_core` crate.
 #[derive(Debug, Clone)]
 pub struct Base64CaptureResult {
     /// Metadata of the monitor this screenshot was captured from.
