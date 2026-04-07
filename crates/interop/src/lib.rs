@@ -163,3 +163,98 @@ fn parse_format(format: Option<String>) -> napi::Result<ImageFormat> {
         Some(s) => s.parse::<ImageFormat>().map_err(error::to_napi),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // -- parse_format defaults to PNG -----------------------------------------
+
+    #[test]
+    fn parse_format_none_defaults_to_png() {
+        let fmt = parse_format(None).expect("None should default to Png");
+        assert_eq!(fmt, ImageFormat::Png);
+    }
+
+    // -- parse_format accepts canonical names ----------------------------------
+
+    #[test]
+    fn parse_format_canonical_png() {
+        let fmt = parse_format(Some("Png".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Png);
+    }
+
+    #[test]
+    fn parse_format_canonical_jpeg() {
+        let fmt = parse_format(Some("Jpeg".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Jpeg);
+    }
+
+    #[test]
+    fn parse_format_canonical_webp() {
+        let fmt = parse_format(Some("WebP".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::WebP);
+    }
+
+    #[test]
+    fn parse_format_canonical_avif() {
+        let fmt = parse_format(Some("Avif".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Avif);
+    }
+
+    // -- parse_format is case-insensitive -------------------------------------
+
+    #[test]
+    fn parse_format_case_insensitive_uppercase() {
+        let fmt = parse_format(Some("PNG".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Png);
+    }
+
+    #[test]
+    fn parse_format_case_insensitive_lowercase() {
+        let fmt = parse_format(Some("jpeg".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Jpeg);
+    }
+
+    #[test]
+    fn parse_format_case_insensitive_mixed() {
+        let fmt = parse_format(Some("wEbP".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::WebP);
+    }
+
+    // -- parse_format recognises "jpg" alias ----------------------------------
+
+    #[test]
+    fn parse_format_jpg_alias() {
+        let fmt = parse_format(Some("jpg".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Jpeg);
+    }
+
+    #[test]
+    fn parse_format_jpg_alias_uppercase() {
+        let fmt = parse_format(Some("JPG".to_string())).unwrap();
+        assert_eq!(fmt, ImageFormat::Jpeg);
+    }
+
+    // -- parse_format rejects unknown formats ---------------------------------
+
+    #[test]
+    fn parse_format_invalid_returns_error() {
+        let err = parse_format(Some("bmp".to_string())).unwrap_err();
+        assert!(
+            err.reason.contains("[INVALID_ARGUMENT]"),
+            "expected INVALID_ARGUMENT code, got: {}",
+            err.reason
+        );
+    }
+
+    #[test]
+    fn parse_format_empty_string_returns_error() {
+        let err = parse_format(Some(String::new())).unwrap_err();
+        assert!(
+            err.reason.contains("[INVALID_ARGUMENT]"),
+            "expected INVALID_ARGUMENT code, got: {}",
+            err.reason
+        );
+    }
+}

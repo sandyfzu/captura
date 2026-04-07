@@ -325,3 +325,186 @@ impl From<Base64CaptureResult> for JsBase64CaptureResult {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use xshot_domain::{Bounds, ImageFormat, MonitorInfo, Size};
+
+    // -- Test fixtures --------------------------------------------------------
+
+    fn sample_bounds() -> Bounds {
+        Bounds {
+            x: -100,
+            y: 200,
+            width: 1920,
+            height: 1080,
+        }
+    }
+
+    fn sample_monitor_info() -> MonitorInfo {
+        MonitorInfo {
+            id: 7,
+            name: "Display #16419".to_string(),
+            friendly_name: "Built-in Retina Display".to_string(),
+            physical: Bounds {
+                x: 0,
+                y: 0,
+                width: 2560,
+                height: 1600,
+            },
+            logical: Bounds {
+                x: 0,
+                y: 0,
+                width: 1280,
+                height: 800,
+            },
+            rotation: 90.0,
+            scale_factor: 2.0,
+            frequency: 120.0,
+            is_primary: true,
+            is_builtin: true,
+        }
+    }
+
+    // -- JsBounds -------------------------------------------------------------
+
+    #[test]
+    fn js_bounds_from_domain_bounds() {
+        let b = sample_bounds();
+        let js = JsBounds::from(b);
+        assert_eq!(js.x, -100);
+        assert_eq!(js.y, 200);
+        assert_eq!(js.width, 1920);
+        assert_eq!(js.height, 1080);
+    }
+
+    #[test]
+    fn js_bounds_preserves_negative_coordinates() {
+        let b = Bounds {
+            x: i32::MIN,
+            y: -1,
+            width: 0,
+            height: u32::MAX,
+        };
+        let js = JsBounds::from(b);
+        assert_eq!(js.x, i32::MIN);
+        assert_eq!(js.y, -1);
+        assert_eq!(js.width, 0);
+        assert_eq!(js.height, u32::MAX);
+    }
+
+    // -- JsSize ---------------------------------------------------------------
+
+    #[test]
+    fn js_size_from_domain_size() {
+        let s = Size {
+            width: 3840,
+            height: 2160,
+        };
+        let js = JsSize::from(s);
+        assert_eq!(js.width, 3840);
+        assert_eq!(js.height, 2160);
+    }
+
+    // -- JsImageFormat --------------------------------------------------------
+
+    #[test]
+    fn js_image_format_from_domain_all_variants() {
+        let cases = [
+            (ImageFormat::Png, JsImageFormat::Png),
+            (ImageFormat::Jpeg, JsImageFormat::Jpeg),
+            (ImageFormat::WebP, JsImageFormat::WebP),
+            (ImageFormat::Avif, JsImageFormat::Avif),
+        ];
+        for (domain, expected_js) in cases {
+            let js = JsImageFormat::from(domain);
+            // Compare discriminant since JsImageFormat may not impl PartialEq.
+            assert_eq!(
+                std::mem::discriminant(&js),
+                std::mem::discriminant(&expected_js),
+                "failed for {domain:?}"
+            );
+        }
+    }
+
+    // -- JsMonitor ------------------------------------------------------------
+
+    #[test]
+    fn js_monitor_from_domain_monitor_info() {
+        let m = sample_monitor_info();
+        let js = JsMonitor::from(m);
+
+        assert_eq!(js.id, 7);
+        assert_eq!(js.name, "Display #16419");
+        assert_eq!(js.friendly_name, "Built-in Retina Display");
+
+        // Physical bounds
+        assert_eq!(js.physical.width, 2560);
+        assert_eq!(js.physical.height, 1600);
+        assert_eq!(js.physical.x, 0);
+        assert_eq!(js.physical.y, 0);
+
+        // Logical bounds
+        assert_eq!(js.logical.width, 1280);
+        assert_eq!(js.logical.height, 800);
+
+        // Scalar fields
+        assert!((js.rotation - 90.0).abs() < f64::EPSILON);
+        assert!((js.scale_factor - 2.0).abs() < f64::EPSILON);
+        assert!((js.frequency - 120.0).abs() < f64::EPSILON);
+        assert!(js.is_primary);
+        assert!(js.is_builtin);
+    }
+
+    #[test]
+    fn js_monitor_preserves_false_booleans() {
+        let m = MonitorInfo {
+            is_primary: false,
+            is_builtin: false,
+            ..sample_monitor_info()
+        };
+        let js = JsMonitor::from(m);
+        assert!(!js.is_primary);
+        assert!(!js.is_builtin);
+    }
+
+    // -- JsBase64Screenshot ---------------------------------------------------
+
+    #[test]
+    fn js_base64_screenshot_from_domain() {
+        let s = xshot_domain::Base64Screenshot {
+            size: Size {
+                width: 100,
+                height: 200,
+            },
+            format: ImageFormat::Jpeg,
+            data: "iVBORw0KGgo=".to_string(),
+        };
+        let js = JsBase64Screenshot::from(s);
+        assert_eq!(js.size.width, 100);
+        assert_eq!(js.size.height, 200);
+        assert_eq!(js.data, "iVBORw0KGgo=");
+    }
+
+    // -- JsBase64CaptureResult ------------------------------------------------
+
+    #[test]
+    fn js_base64_capture_result_from_domain() {
+        let r = xshot_domain::Base64CaptureResult {
+            monitor: sample_monitor_info(),
+            screenshot: xshot_domain::Base64Screenshot {
+                size: Size {
+                    width: 2560,
+                    height: 1600,
+                },
+                format: ImageFormat::Png,
+                data: "AAAA".to_string(),
+            },
+        };
+        let js = JsBase64CaptureResult::from(r);
+        assert_eq!(js.monitor.id, 7);
+        assert_eq!(js.screenshot.size.width, 2560);
+        assert_eq!(js.screenshot.data, "AAAA");
+    }
+}

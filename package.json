@@ -22,14 +22,18 @@
     "node": ">= 20.3.0"
   },
   "scripts": {
-    "build": "napi build --platform --release -p xshot",
-    "build:debug": "napi build --platform -p xshot",
+    "build": "napi build --platform --release -p xshot -o .",
+    "build:debug": "napi build --platform -p xshot -o .",
+    "test": "node --test __tests__/integration.mts",
+    "typecheck": "tsc --noEmit",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm",
     "version": "napi version"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.5.1"
+    "@napi-rs/cli": "^3.5.1",
+    "@types/node": "^22.19.15",
+    "typescript": "^6.0.2"
   },
   "files": [
     "index.js",

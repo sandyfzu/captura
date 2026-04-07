@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    // -- Strictness ----------------------------------------------------------
+    // TS 6.0 defaults `strict` to true; explicit for clarity.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+
+    // -- Modules / resolution ------------------------------------------------
+    // Node.js native module system.
+    // https://www.typescriptlang.org/tsconfig/#module
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // -- Target --------------------------------------------------------------
+    // TS 6.0 defaults to es2025; esnext tracks the latest spec.
+    "target": "esnext",
+
+    // -- Node.js type-stripping compatibility --------------------------------
+    // https://nodejs.org/api/typescript.html#type-stripping
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    // -- Emit ----------------------------------------------------------------
+    // No JS output — tests run directly via Node.js type stripping.
+    "noEmit": true,
+
+    // -- Type acquisition ----------------------------------------------------
+    // TS 6.0 defaults `types` to []. We explicitly load @types/node so that
+    // globals (Buffer, process, etc.) and built-in modules (node:test,
+    // node:assert) are available.
+    "types": ["node"]
+  },
+  "include": ["__tests__/**/*.mts"]
+}
