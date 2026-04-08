@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -84,16 +84,16 @@ jobs:
 
           # ── Linux GNU ───────────────────────────────────────────────────
           - target: x86_64-unknown-linux-gnu
-            host: ubuntu-22.04
+            host: ubuntu-24.04
           - target: aarch64-unknown-linux-gnu
-            host: ubuntu-22.04
+            host: ubuntu-24.04
 
           # ── Linux musl (built inside Alpine Docker containers) ──────────
           - target: x86_64-unknown-linux-musl
-            host: ubuntu-22.04
+            host: ubuntu-24.04
             docker: true
           - target: aarch64-unknown-linux-musl
-            host: ubuntu-22.04
+            host: ubuntu-24.04
             docker: true
 
     steps:
@@ -132,14 +132,27 @@ jobs:
         run: |
           sudo dpkg --add-architecture arm64
 
-          # arm64 packages live on ports.ubuntu.com, not the default archive
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" \
-            | sudo tee /etc/apt/sources.list.d/arm64.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" \
-            | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          # Ubuntu 24.04 uses DEB822 format (.sources files). Restrict
+          # every existing source stanza to amd64 so that apt does not
+          # try to fetch arm64 indices from mirrors that don't carry them.
+          for f in /etc/apt/sources.list.d/*.sources; do
+            [ -f "$f" ] && sudo sed -i '/^Types: /a Architectures: amd64' "$f"
+          done
 
-          # Restrict default sources to amd64 to prevent package conflicts
-          sudo sed -i 's/^deb http/deb [arch=amd64] http/g' /etc/apt/sources.list
+          # Also handle any traditional .list files that may still exist
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
+            [ -f "$f" ] && sudo sed -i 's/^deb http/deb [arch=amd64] http/g' "$f" 2>/dev/null || true
+          done
+
+          # arm64 packages live on ports.ubuntu.com
+          sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null <<'SOURCES'
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          Suites: noble noble-updates
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          SOURCES
 
           sudo apt-get update
 
@@ -194,6 +207,20 @@ jobs:
                 sh -s -- -y --default-toolchain stable
               source "$HOME/.cargo/env"
 
+              # On musl, Rust statically links the CRT by default, which
+              # stubs out dlopen(). bindgen (used by libspa-sys) needs
+              # dlopen() to load libclang at build time. Disabling
+              # crt-static produces dynamically-linked build scripts
+              # where dlopen() works. The final .node output is a shared
+              # library loaded by Node.js on musl systems, so dynamic
+              # musl linkage is correct.
+              export RUSTFLAGS="-C target-feature=-crt-static"
+
+              # Cargo looks for <triple>-gcc when --target is set
+              # explicitly, but Alpine provides GCC simply as "gcc".
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+
               # Build
               npm ci
               npx napi build --platform --release -p xshot -o . \
@@ -244,7 +271,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             host: windows-latest
           - target: x86_64-unknown-linux-gnu
-            host: ubuntu-22.04
+            host: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
