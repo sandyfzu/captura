@@ -24,11 +24,11 @@ env:
 #
 # apt (Debian/Ubuntu):
 #   pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev
-#   libpipewire-0.3-dev libwayland-dev libegl-dev
+#   libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 #
 # apk (Alpine):
 #   clang-dev pkgconf libxcb-dev libxrandr-dev dbus-dev
-#   pipewire-dev wayland-dev mesa-dev
+#   pipewire-dev wayland-dev mesa-dev (mesa-dev provides gbm)
 # ---------------------------------------------------------------------------
 
 jobs:
@@ -54,7 +54,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libclang-dev \
             libxcb1-dev libxrandr-dev libdbus-1-dev \
-            libpipewire-0.3-dev libwayland-dev libegl-dev
+            libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -72,7 +72,7 @@ jobs:
         settings:
           # ── macOS ────────────────────────────────────────────────────────
           - target: x86_64-apple-darwin
-            host: macos-13
+            host: macos-14
           - target: aarch64-apple-darwin
             host: macos-latest
 
@@ -124,7 +124,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libclang-dev \
             libxcb1-dev libxrandr-dev libdbus-1-dev \
-            libpipewire-0.3-dev libwayland-dev libegl-dev
+            libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 
       # ── aarch64-linux-gnu: multiarch cross-compilation ─────────────────
       - name: Setup cross-compilation (aarch64-linux-gnu)
@@ -170,7 +170,8 @@ jobs:
             libdbus-1-dev:arm64 \
             libpipewire-0.3-dev:arm64 \
             libwayland-dev:arm64 \
-            libegl-dev:arm64
+            libegl-dev:arm64 \
+            libgbm-dev:arm64
 
       # ── QEMU setup for arm64 musl Docker build ────────────────────────
       - name: Setup QEMU
@@ -209,22 +210,24 @@ jobs:
 
               # On musl, Rust statically links the CRT by default, which
               # stubs out dlopen(). bindgen (used by libspa-sys) needs
-              # dlopen() to load libclang at build time. Disabling
-              # crt-static produces dynamically-linked build scripts
-              # where dlopen() works. The final .node output is a shared
-              # library loaded by Node.js on musl systems, so dynamic
-              # musl linkage is correct.
+              # dlopen() at build time to load libclang. Disabling
+              # crt-static produces dynamically-linked binaries where
+              # dlopen() works.
+              #
+              # IMPORTANT: We intentionally omit --target from the napi
+              # build command below. Without --target, Cargo applies
+              # RUSTFLAGS to ALL compilations — including build scripts
+              # and proc macros. With --target set explicitly, RUSTFLAGS
+              # only applies to target code, not build scripts, so
+              # build scripts would still be statically linked and unable
+              # to dlopen() libclang.
+              # (Ref: https://doc.rust-lang.org/cargo/reference/config.html#buildrustflags)
               export RUSTFLAGS="-C target-feature=-crt-static"
 
-              # Cargo looks for <triple>-gcc when --target is set
-              # explicitly, but Alpine provides GCC simply as "gcc".
-              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=gcc
-              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
-
-              # Build
+              # Build — napi auto-detects the host triple (x86_64 or
+              # aarch64-unknown-linux-musl) for output file naming.
               npm ci
-              npx napi build --platform --release -p xshot -o . \
-                --target ${{ matrix.settings.target }}
+              npx napi build --platform --release -p xshot -o .
             '
 
           # Fix file ownership after Docker (container runs as root)
@@ -266,8 +269,6 @@ jobs:
         settings:
           - target: aarch64-apple-darwin
             host: macos-latest
-          - target: x86_64-apple-darwin
-            host: macos-13
           - target: x86_64-pc-windows-msvc
             host: windows-latest
           - target: x86_64-unknown-linux-gnu
@@ -289,7 +290,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb1 libxrandr2 libdbus-1-3 \
-            libpipewire-0.3-0 libwayland-client0 libegl1
+            libpipewire-0.3-0 libwayland-client0 libegl1 libgbm1
 
       - run: npm run typecheck
       - run: npm test
