@@ -139,15 +139,26 @@ jobs:
             [ -f "$f" ] && sudo sed -i '/^Types: /a Architectures: amd64' "$f"
           done
 
-          # Also handle any traditional .list files that may still exist
+          # Also handle any traditional .list files that may still exist.
+          # The runner image pre-installs Docker, Microsoft Edge, GitHub CLI,
+          # etc., which add .list files with https:// URIs and [signed-by=...]
+          # option blocks. A naive sed on "deb http" misses all of those.
           for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
-            [ -f "$f" ] && sudo sed -i 's/^deb http/deb [arch=amd64] http/g' "$f" 2>/dev/null || true
+            [ -f "$f" ] && sudo perl -0pi -e '
+              s{^deb(\s+)\[([^\]]*)\](\s+https?://)}{
+                my ($ws, $opts, $uri_ws) = ($1, $2, $3);
+                $opts =~ /\barch=amd64\b/
+                  ? "deb${ws}[${opts}]${uri_ws}"
+                  : "deb${ws}[${opts} arch=amd64]${uri_ws}";
+              }gme;
+              s{^deb(\s+)(https?://)}{"deb${1}[arch=amd64] ${2}"}gme;
+            ' "$f" 2>/dev/null || true
           done
 
           # arm64 packages live on ports.ubuntu.com
           sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null <<'SOURCES'
           Types: deb
-          URIs: http://ports.ubuntu.com/ubuntu-ports/
+          URIs: https://ports.ubuntu.com/ubuntu-ports/
           Suites: noble noble-updates
           Components: main restricted universe multiverse
           Architectures: arm64
