@@ -219,24 +219,36 @@ jobs:
                 sh -s -- -y --default-toolchain stable
               source "$HOME/.cargo/env"
 
-              # On musl, Rust statically links the CRT by default, which
-              # stubs out dlopen(). bindgen (used by libspa-sys) needs
-              # dlopen() at build time to load libclang. Disabling
-              # crt-static produces dynamically-linked binaries where
-              # dlopen() works.
+              # On musl, Rust statically links the CRT by default
+              # (+crt-static), which stubs dlopen(). bindgen (used by
+              # libspa-sys) needs dlopen() at build time to load
+              # libclang. Disabling crt-static produces dynamically-
+              # linked binaries where dlopen() works.
               #
-              # IMPORTANT: We intentionally omit --target from the napi
-              # build command below. Without --target, Cargo applies
-              # RUSTFLAGS to ALL compilations — including build scripts
-              # and proc macros. With --target set explicitly, RUSTFLAGS
-              # only applies to target code, not build scripts, so
-              # build scripts would still be statically linked and unable
-              # to dlopen() libclang.
+              # PROBLEM: napi-rs CLI always passes --target to cargo
+              # internally (even when omitted from the CLI). When
+              # --target is set, RUSTFLAGS only applies to target
+              # code — not to build scripts or proc macros. Build
+              # scripts are still compiled with +crt-static and
+              # cannot dlopen() libclang.
               # (Ref: https://doc.rust-lang.org/cargo/reference/config.html#buildrustflags)
-              export RUSTFLAGS="-C target-feature=-crt-static"
+              #
+              # FIX: RUSTC_WRAPPER injects the flag into every rustc
+              # invocation, including build scripts and proc macros.
+              # The [host] Cargo config would be cleaner, but it is
+              # still an unstable feature requiring nightly.
+              # (Ref: https://github.com/rust-lang/cargo/issues/9452)
+              printf "#!/bin/sh\nexec \"\$@\" -C target-feature=-crt-static\n" \
+                > /usr/local/bin/rustc-crt-dynamic
+              chmod +x /usr/local/bin/rustc-crt-dynamic
+              export RUSTC_WRAPPER=/usr/local/bin/rustc-crt-dynamic
 
-              # Build — napi auto-detects the host triple (x86_64 or
-              # aarch64-unknown-linux-musl) for output file naming.
+              # Cargo uses target-specific default linker names (e.g.
+              # aarch64-linux-musl-gcc for aarch64-unknown-linux-musl).
+              # On Alpine the native GCC is simply "gcc".
+              export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+
               npm ci
               npx napi build --platform --release -p xshot -o .
             '
