@@ -159,13 +159,14 @@ impl From<Size> for JsSize {
     }
 }
 
-/// The encoding format of a captured screenshot.
+/// The format of a captured screenshot.
 ///
-/// Indicates which image codec was used to encode `Screenshot.data`.
-/// All formats use default encoder settings. If you need fine-grained
-/// control over encoding parameters (e.g. JPEG quality, AVIF speed),
-/// capture as `"Png"` (lossless, pixel-perfect) and convert using your
-/// preferred image processing library.
+/// Determines how `Screenshot.data` is represented. `"Raw"` returns
+/// unencoded RGBA8 pixel data, while the other formats return encoded
+/// image bytes. Encoded formats use default encoder settings. If you need
+/// fine-grained control over encoding parameters (e.g. JPEG quality, AVIF
+/// speed), capture as `"Raw"` and re-encode using your preferred image
+/// processing library.
 ///
 /// | Value | MIME type | Notes |
 /// |-------|-----------|-------|
