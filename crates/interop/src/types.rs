@@ -169,12 +169,15 @@ impl From<Size> for JsSize {
 ///
 /// | Value | MIME type | Notes |
 /// |-------|-----------|-------|
+/// | `"Raw"` | `application/octet-stream` | Unencoded RGBA8 pixel data. Zero-copy. Not supported for Base64. |
 /// | `"Png"` | `image/png` | Default. Lossless, pixel-perfect. |
 /// | `"Jpeg"` | `image/jpeg` | Lossy, default quality. |
 /// | `"WebP"` | `image/webp` | Lossless only. |
 /// | `"Avif"` | `image/avif` | Default speed and quality. |
 #[napi(string_enum, js_name = "ImageFormat")]
 pub enum JsImageFormat {
+    /// Raw RGBA8 pixel data — unencoded, zero-copy. Not supported for Base64.
+    Raw,
     /// PNG — lossless, pixel-perfect. Default format.
     Png,
     /// JPEG — lossy compression, default quality.
@@ -188,6 +191,7 @@ pub enum JsImageFormat {
 impl From<ImageFormat> for JsImageFormat {
     fn from(f: ImageFormat) -> Self {
         match f {
+            ImageFormat::Raw => Self::Raw,
             ImageFormat::Png => Self::Png,
             ImageFormat::Jpeg => Self::Jpeg,
             ImageFormat::WebP => Self::WebP,
@@ -198,23 +202,28 @@ impl From<ImageFormat> for JsImageFormat {
 
 /// A captured screenshot — the image payload with its dimensions and format.
 ///
-/// `data` contains encoded image bytes in the format indicated by `format`
-/// (PNG by default). It can be written to disk, served over HTTP, or passed
-/// directly to any image library without additional processing.
+/// `data` contains either raw RGBA8 pixel data (`format === 'Raw'`) or
+/// encoded image bytes in the format indicated by `format` (PNG by default).
 ///
-/// All formats use default encoder settings:
+/// When format is `'Raw'`, `data` holds unencoded RGBA8 pixels:
+///
+/// - 4 bytes per pixel: R, G, B, A.
+/// - Row-major, top-left to bottom-right.
+/// - `data.byteLength === size.width × size.height × 4`.
+///
+/// Encoded formats use default encoder settings:
 ///
 /// - **PNG**: lossless, default compression.
 /// - **JPEG**: lossy, default quality.
 /// - **WebP**: lossless encoding only.
 /// - **AVIF**: default speed and quality.
 ///
-/// If you need custom encoding parameters, capture as PNG (lossless) and
-/// re-encode with your preferred image processing library.
+/// If you need custom encoding parameters, capture as `'Raw'` and encode
+/// with your preferred image processing library.
 ///
-/// `size` reflects the **actual** pixel dimensions of the encoded image.
+/// `size` reflects the **actual** pixel dimensions of the image.
 /// Use `size.width` and `size.height` to know the image dimensions without
-/// inspecting the encoded bytes.
+/// inspecting the data.
 ///
 /// `format` tells you which codec was used, so you can set the correct
 /// `Content-Type` header or file extension without guessing.
@@ -412,6 +421,7 @@ mod tests {
     #[test]
     fn js_image_format_from_domain_all_variants() {
         let cases = [
+            (ImageFormat::Raw, JsImageFormat::Raw),
             (ImageFormat::Png, JsImageFormat::Png),
             (ImageFormat::Jpeg, JsImageFormat::Jpeg),
             (ImageFormat::WebP, JsImageFormat::WebP),

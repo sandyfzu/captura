@@ -115,30 +115,56 @@ pub struct Size {
 /// The encoding format of a captured screenshot.
 ///
 /// Indicates how `Screenshot::data` is encoded. This is a closed set of
-/// formats that xshot supports — all backed by the
-/// [`image`](https://docs.rs/image/0.25/image/) crate.
+/// formats that xshot supports.
 ///
-/// All formats use default encoder settings. For fine-grained control over
-/// encoding parameters (e.g. JPEG quality, AVIF speed), capture as PNG
-/// (lossless) and re-encode externally.
+/// Encoded formats (PNG, JPEG, WebP, AVIF) use default encoder settings.
+/// For fine-grained control over encoding parameters (e.g. JPEG quality,
+/// AVIF speed), capture as `Raw` (zero-copy RGBA8 pixel data) and encode
+/// externally with your preferred image library.
 ///
 /// # Supported formats
 ///
 /// | Variant | MIME type | Notes |
 /// |---------|-----------|-------|
-/// | `Png` | `image/png` | Default. Lossless, best for pixel-perfect captures. |
+/// | `Raw` | `application/octet-stream` | Unencoded RGBA8 pixel data (4 bytes/pixel, row-major). Zero-copy. |
+/// | `Png` | `image/png` | **Default.** Lossless, best for pixel-perfect captures. |
 /// | `Jpeg` | `image/jpeg` | Lossy. Default quality (75). |
 /// | `WebP` | `image/webp` | Lossless only (the `image` crate does not support lossy WebP). |
 /// | `Avif` | `image/avif` | Default speed and quality settings. |
 ///
+/// # Raw format
+///
+/// When `Raw` is selected, `Screenshot::data` contains the raw RGBA8 pixel
+/// buffer exactly as captured by the OS — **no encoding, no compression,
+/// no copies**. The buffer layout is:
+///
+/// - 4 bytes per pixel: R, G, B, A (in that order).
+/// - Pixels are in row-major order, top-left to bottom-right.
+/// - Buffer length = `width × height × 4`.
+///
+/// This is the fastest capture path. Use it when you intend to process
+/// pixels directly (e.g. feed into `sharp`, a canvas, WebGL textures, or
+/// re-encode with custom settings).
+///
+/// `Raw` is **not supported** with Base64 capture functions
+/// (`captureMonitorBase64`, `captureAllMonitorsBase64`). Passing `Raw` to
+/// those functions returns an `INVALID_ARGUMENT` error. Raw data is not
+/// self-describing and has no meaningful MIME type for data URIs.
+///
 /// # Sources
 ///
+/// - Raw: [`xcap::Monitor::capture_image()`](https://docs.rs/xcap/0.9/xcap/struct.Monitor.html#method.capture_image) returns `image::RgbaImage` (`ImageBuffer<Rgba<u8>, Vec<u8>>`)
 /// - PNG: [`image::codecs::png::PngEncoder`](https://docs.rs/image/0.25/image/codecs/png/struct.PngEncoder.html)
 /// - JPEG: [`image::codecs::jpeg::JpegEncoder`](https://docs.rs/image/0.25/image/codecs/jpeg/struct.JpegEncoder.html)
 /// - WebP: [`image::codecs::webp::WebPEncoder`](https://docs.rs/image/0.25/image/codecs/webp/struct.WebPEncoder.html)
 /// - AVIF: [`image::codecs::avif::AvifEncoder`](https://docs.rs/image/0.25/image/codecs/avif/struct.AvifEncoder.html)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ImageFormat {
+    /// Raw RGBA8 pixel data — unencoded, zero-copy. 4 bytes per pixel,
+    /// row-major, top-left to bottom-right. Buffer length = width × height × 4.
+    ///
+    /// Not supported with Base64 capture functions.
+    Raw,
     /// PNG — lossless, pixel-perfect. Default format.
     Png,
     /// JPEG — lossy compression, default quality.
@@ -167,6 +193,7 @@ impl ImageFormat {
     /// ```
     pub const fn mime_type(self) -> &'static str {
         match self {
+            Self::Raw => "application/octet-stream",
             Self::Png => "image/png",
             Self::Jpeg => "image/jpeg",
             Self::WebP => "image/webp",
@@ -184,6 +211,7 @@ impl ImageFormat {
     /// ```
     pub const fn extension(self) -> &'static str {
         match self {
+            Self::Raw => "raw",
             Self::Png => "png",
             Self::Jpeg => "jpg",
             Self::WebP => "webp",
@@ -195,6 +223,7 @@ impl ImageFormat {
 impl std::fmt::Display for ImageFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
+            Self::Raw => "Raw",
             Self::Png => "PNG",
             Self::Jpeg => "JPEG",
             Self::WebP => "WebP",
@@ -208,9 +237,10 @@ impl std::str::FromStr for ImageFormat {
 
     /// Parses an image format from a string, **case-insensitively**.
     ///
-    /// Accepts canonical names (`"Png"`, `"Jpeg"`, `"WebP"`, `"Avif"`) as
-    /// well as any casing variant (`"png"`, `"PNG"`, `"jPeG"`, etc.).
-    /// The common alias `"jpg"` (any casing) is also accepted as [`ImageFormat::Jpeg`].
+    /// Accepts canonical names (`"Raw"`, `"Png"`, `"Jpeg"`, `"WebP"`,
+    /// `"Avif"`) as well as any casing variant (`"raw"`, `"png"`, `"PNG"`,
+    /// `"jPeG"`, etc.). The common alias `"jpg"` (any casing) is also
+    /// accepted as [`ImageFormat::Jpeg`].
     ///
     /// # Errors
     ///
@@ -222,6 +252,7 @@ impl std::str::FromStr for ImageFormat {
     /// ```
     /// use xshot_domain::ImageFormat;
     ///
+    /// assert_eq!("raw".parse::<ImageFormat>().unwrap(), ImageFormat::Raw);
     /// assert_eq!("png".parse::<ImageFormat>().unwrap(), ImageFormat::Png);
     /// assert_eq!("JPEG".parse::<ImageFormat>().unwrap(), ImageFormat::Jpeg);
     /// assert_eq!("jpg".parse::<ImageFormat>().unwrap(), ImageFormat::Jpeg);
@@ -230,7 +261,9 @@ impl std::str::FromStr for ImageFormat {
     /// assert!("bmp".parse::<ImageFormat>().is_err());
     /// ```
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case("png") {
+        if s.eq_ignore_ascii_case("raw") {
+            Ok(Self::Raw)
+        } else if s.eq_ignore_ascii_case("png") {
             Ok(Self::Png)
         } else if s.eq_ignore_ascii_case("jpeg") || s.eq_ignore_ascii_case("jpg") {
             Ok(Self::Jpeg)
@@ -240,7 +273,7 @@ impl std::str::FromStr for ImageFormat {
             Ok(Self::Avif)
         } else {
             Err(crate::XshotError::invalid_argument(format!(
-                "unsupported image format {s:?} — expected one of: png, jpeg, jpg, webp, avif (case-insensitive)"
+                "unsupported image format {s:?} — expected one of: raw, png, jpeg, jpg, webp, avif (case-insensitive)"
             )))
         }
     }
@@ -248,11 +281,14 @@ impl std::str::FromStr for ImageFormat {
 
 /// A captured screenshot — the image payload with its dimensions and format.
 ///
-/// `data` contains encoded image bytes in the format indicated by `format`
-/// (PNG by default). The encoding is performed in the utility layer before
-/// this struct is constructed.
+/// `data` contains either raw RGBA8 pixel data (`format == Raw`) or encoded
+/// image bytes in the format indicated by `format` (PNG by default).
 ///
-/// `size` reflects the **actual** pixel dimensions of the encoded image.
+/// When `format` is `Raw`, `data` holds the unencoded RGBA8 buffer
+/// (`width × height × 4` bytes, row-major). For all other formats, encoding
+/// is performed in the utility layer before this struct is constructed.
+///
+/// `size` reflects the **actual** pixel dimensions of the image.
 /// For a full-monitor capture this matches `MonitorInfo::physical`, but
 /// future region captures may produce smaller images.
 #[derive(Debug, Clone)]
@@ -381,6 +417,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_raw_case_insensitive() {
+        for input in ["raw", "Raw", "RAW", "rAw", "raW"] {
+            assert_eq!(
+                input.parse::<ImageFormat>().unwrap(),
+                ImageFormat::Raw,
+                "failed for {input:?}"
+            );
+        }
+    }
+
+    #[test]
     fn parse_unknown_format_returns_invalid_argument() {
         for input in ["bmp", "gif", "tiff", "svg", "", "pn", "jpe", "web"] {
             let err = input.parse::<ImageFormat>().unwrap_err();
@@ -400,6 +447,7 @@ mod tests {
         // can see what went wrong.
         assert!(msg.contains("bmp"), "expected input in message: {msg}");
         // It should also hint at the valid options.
+        assert!(msg.contains("raw"), "expected valid format hint: {msg}");
         assert!(msg.contains("png"), "expected valid format hint: {msg}");
         assert!(msg.contains("jpeg"), "expected valid format hint: {msg}");
         assert!(msg.contains("webp"), "expected valid format hint: {msg}");
@@ -413,6 +461,7 @@ mod tests {
     #[test]
     fn display_roundtrips_through_from_str() {
         for format in [
+            ImageFormat::Raw,
             ImageFormat::Png,
             ImageFormat::Jpeg,
             ImageFormat::WebP,
@@ -448,6 +497,7 @@ mod tests {
 
     #[test]
     fn mime_types() {
+        assert_eq!(ImageFormat::Raw.mime_type(), "application/octet-stream");
         assert_eq!(ImageFormat::Png.mime_type(), "image/png");
         assert_eq!(ImageFormat::Jpeg.mime_type(), "image/jpeg");
         assert_eq!(ImageFormat::WebP.mime_type(), "image/webp");
@@ -456,6 +506,7 @@ mod tests {
 
     #[test]
     fn extensions() {
+        assert_eq!(ImageFormat::Raw.extension(), "raw");
         assert_eq!(ImageFormat::Png.extension(), "png");
         assert_eq!(ImageFormat::Jpeg.extension(), "jpg");
         assert_eq!(ImageFormat::WebP.extension(), "webp");
@@ -464,6 +515,7 @@ mod tests {
 
     #[test]
     fn display_names() {
+        assert_eq!(ImageFormat::Raw.to_string(), "Raw");
         assert_eq!(ImageFormat::Png.to_string(), "PNG");
         assert_eq!(ImageFormat::Jpeg.to_string(), "JPEG");
         assert_eq!(ImageFormat::WebP.to_string(), "WebP");

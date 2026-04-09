@@ -9,7 +9,7 @@ Built with [Rust](https://www.rust-lang.org/), [xcap](https://github.com/nashaof
 - **Cross-platform** — macOS (x64, arm64), Windows (x64, arm64), Linux (x64, arm64 — glibc and musl)
 - **Async/Promise-based** — every function returns a `Promise` and never blocks the Node.js event loop
 - **Fully typed** — auto-generated TypeScript definitions with rich JSDoc documentation
-- **Multi-format** — PNG (default), JPEG, WebP, and AVIF output
+- **Multi-format** — Raw (zero-copy RGBA), PNG (default), JPEG, WebP, and AVIF output
 - **Buffer & Base64** — get screenshots as a Node.js `Buffer` or a Base64 string
 - **Physical & logical coordinates** — monitor metadata exposes both pixel-exact and DIP geometry
 
@@ -66,6 +66,23 @@ const jpg = await captureMonitor(1, 'Jpeg')
 writeFileSync('screenshot.jpg', jpg.screenshot.data)
 ```
 
+### Capture raw RGBA pixels (fastest)
+
+```ts
+// 'Raw' skips image compression entirely — it returns the pixel data
+// straight from the OS, making it significantly faster than any encoded
+// format.  Use it when you plan to process the pixels yourself.
+const raw = await captureMonitor(1, 'Raw')
+const { width, height } = raw.screenshot.size
+
+// Buffer layout: 4 bytes per pixel (R, G, B, A), row-major.
+// Length is always width × height × 4.
+console.log(`${width}×${height} — ${raw.screenshot.data.length} bytes`)
+
+// Feed into sharp, node-canvas, WebGL textures, or re-encode
+// with your own quality/format settings.
+```
+
 ### Capture all monitors
 
 ```ts
@@ -105,10 +122,13 @@ The optional `format` parameter accepts (case-insensitive):
 
 | Value | MIME Type | Notes |
 |-------|-----------|-------|
+| `'Raw'` | `application/octet-stream` | Unencoded RGBA8 pixels. **Fastest** — skips compression entirely. Not supported for Base64 functions. |
 | `'Png'` | `image/png` | **Default.** Lossless, pixel-perfect. |
 | `'Jpeg'` / `'Jpg'` | `image/jpeg` | Lossy, default quality. |
 | `'WebP'` | `image/webp` | Lossless only. |
 | `'Avif'` | `image/avif` | Default speed and quality. |
+
+> **Note:** Passing `'Raw'` to `captureMonitorBase64()` or `captureAllMonitorsBase64()` throws an `INVALID_ARGUMENT` error. Raw pixel data is not self-describing and cannot be used in data URIs.
 
 ### Types
 
@@ -140,8 +160,8 @@ interface CaptureResult {
 
 interface Screenshot {
   size: Size
-  format: ImageFormat      // 'Png' | 'Jpeg' | 'WebP' | 'Avif'
-  data: Buffer
+  format: ImageFormat      // 'Raw' | 'Png' | 'Jpeg' | 'WebP' | 'Avif'
+  data: Buffer             // Raw RGBA8 pixels (format === 'Raw') or encoded image bytes
 }
 
 interface Base64CaptureResult {

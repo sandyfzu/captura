@@ -4,6 +4,14 @@
 //! PNG, JPEG, WebP, and AVIF. Each format uses its encoder's default
 //! settings — no fine-grained configuration is exposed.
 //!
+//! # When this module is used
+//!
+//! The core layer calls these functions for all **encoded** formats.
+//! The [`ImageFormat::Raw`] variant bypasses this module entirely — the
+//! raw RGBA8 pixel buffer is moved directly to the caller without
+//! encoding. If you need fine-grained control over encoding parameters,
+//! capture as `Raw` and encode externally.
+//!
 //! # Supported formats
 //!
 //! | Format | Codec | Notes |
@@ -141,6 +149,9 @@ pub fn encode_rgba_base64(
 /// buffer. The goal is to reduce reallocations, not to be precise.
 fn estimate_output_size(raw_len: usize, format: ImageFormat) -> usize {
     let ratio = match format {
+        // Raw: should never reach encoding — return raw_len as a safe
+        // fallback so the function remains total.
+        ImageFormat::Raw => 1,
         // PNG: lossless, ~25 % of raw for typical screenshots.
         ImageFormat::Png => 4,
         // JPEG: lossy, ~10 % of raw at default quality.
@@ -162,6 +173,12 @@ fn encode_into<W: std::io::Write>(
     format: ImageFormat,
 ) -> Result<(), XshotError> {
     match format {
+        ImageFormat::Raw => {
+            return Err(XshotError::encoding_error(
+                "Raw format does not use encoding — this is a bug; \
+                 the core layer should bypass the encoding pipeline for Raw",
+            ));
+        }
         ImageFormat::Png => {
             PngEncoder::new(writer)
                 .write_image(rgba, width, height, image::ExtendedColorType::Rgba8)

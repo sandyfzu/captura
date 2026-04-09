@@ -390,29 +390,31 @@ fn raw_capture_all_monitors() -> Result<Vec<RawCapture>, XshotError> {
 // ---------------------------------------------------------------------------
 
 /// Encodes a [`RawCapture`] into a [`CaptureResult`] with binary image data.
+///
+/// When `format` is [`ImageFormat::Raw`], the RGBA8 pixel buffer is moved
+/// directly into the result via [`RgbaImage::into_raw()`] — zero encoding,
+/// zero copies.  For all other formats the pixels are encoded by the
+/// utility layer.
 fn encode_capture(raw: RawCapture, format: ImageFormat) -> Result<CaptureResult, XshotError> {
-    let data = encode_rgba(
-        raw.image.as_raw(),
-        raw.image.width(),
-        raw.image.height(),
-        format,
-    )?;
+    let width = raw.image.width();
+    let height = raw.image.height();
+
+    let data = if format == ImageFormat::Raw {
+        raw.image.into_raw()
+    } else {
+        encode_rgba(raw.image.as_raw(), width, height, format)?
+    };
 
     debug!(
-        "encoded monitor {}: {}\u{00d7}{} \u{2192} {} bytes {format}",
+        "encoded monitor {}: {width}\u{00d7}{height} \u{2192} {} bytes {format}",
         raw.info.id,
-        raw.image.width(),
-        raw.image.height(),
         data.len(),
     );
 
     Ok(CaptureResult {
         monitor: raw.info,
         screenshot: Screenshot {
-            size: Size {
-                width: raw.image.width(),
-                height: raw.image.height(),
-            },
+            size: Size { width, height },
             format,
             data,
         },
@@ -464,7 +466,8 @@ fn encode_capture_base64(
 /// # Arguments
 ///
 /// * `id` — OS-assigned monitor identifier.
-/// * `format` — Target encoding format (e.g. PNG, JPEG, WebP, AVIF).
+/// * `format` — Target encoding format (e.g. Raw, PNG, JPEG, WebP, AVIF).
+///   When `Raw`, the RGBA8 pixel buffer is returned without encoding.
 ///
 /// # Errors
 ///
@@ -488,7 +491,8 @@ pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResu
 ///
 /// # Arguments
 ///
-/// * `format` — Target encoding format applied to all captures.
+/// * `format` — Target encoding format applied to all captures. When `Raw`,
+///   the RGBA8 pixel buffers are returned without encoding.
 ///
 /// # Errors
 ///
