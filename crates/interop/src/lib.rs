@@ -51,12 +51,13 @@ pub async fn get_monitor_by_id(id: u32) -> napi::Result<JsMonitor> {
     Ok(JsMonitor::from(info))
 }
 
-/// Captures an encoded screenshot of the monitor with the given `id`.
+/// Captures a screenshot of the monitor with the given `id`.
 ///
 /// Returns a `CaptureResult` containing monitor metadata and a `Screenshot`
-/// with the image dimensions and encoded `Buffer`.
+/// with the image dimensions and a `Buffer` whose contents depend on the
+/// selected `format`.
 ///
-/// The optional `format` parameter selects the encoding. When omitted it
+/// The optional `format` parameter selects the output format. When omitted it
 /// defaults to PNG (lossless, pixel-perfect). Pass `'Raw'` to receive the
 /// unencoded RGBA8 pixel buffer (zero-copy, fastest, bypasses compression and encoding). All encoded formats
 /// use default encoder settings — if you need fine-grained control over
