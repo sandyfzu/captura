@@ -59,10 +59,10 @@ pub async fn get_monitor_by_id(id: u32) -> napi::Result<JsMonitor> {
 ///
 /// The optional `format` parameter selects the output format. When omitted it
 /// defaults to PNG (lossless, pixel-perfect). Pass `'Raw'` to receive the
-/// unencoded RGBA8 pixel buffer (zero-copy, fastest, bypasses compression and encoding). All encoded formats
-/// use default encoder settings — if you need fine-grained control over
-/// encoding parameters, capture as `'Raw'` and encode with your preferred
-/// image processing library.
+/// unencoded RGBA8 pixel buffer (zero-copy, fastest, bypasses all encoding).
+/// All encoded formats use default encoder settings — if you need fine-grained
+/// control over encoding parameters, capture as `'Raw'` and encode with your
+/// preferred image processing library.
 ///
 /// ```ts
 /// // Default (PNG)

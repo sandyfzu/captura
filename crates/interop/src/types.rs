@@ -278,7 +278,7 @@ impl From<CaptureResult> for JsCaptureResult {
 
 /// A captured screenshot with Base64-encoded data.
 ///
-/// Identical to [`JsScreenshot`] except `data` is a
+/// The shape is identical to `Screenshot` except `data` is a
 /// [RFC 4648](https://datatracker.ietf.org/doc/html/rfc4648#section-4)
 /// Base64 string instead of a `Buffer`. Useful when the consumer needs a
 /// string representation — for example, embedding in JSON payloads, data
