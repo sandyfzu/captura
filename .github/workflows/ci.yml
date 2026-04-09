@@ -72,7 +72,7 @@ jobs:
         settings:
           # ── macOS ────────────────────────────────────────────────────────
           - target: x86_64-apple-darwin
-            host: macos-14
+            host: macos-15
           - target: aarch64-apple-darwin
             host: macos-latest
 
@@ -137,7 +137,11 @@ jobs:
           # every existing source stanza to amd64 so that apt does not
           # try to fetch arm64 indices from mirrors that don't carry them.
           for f in /etc/apt/sources.list.d/*.sources; do
-            [ -f "$f" ] && sudo sed -i '/^Types: /a Architectures: amd64' "$f"
+            if [ -f "$f" ]; then
+              # Remove existing Architectures: lines first (idempotent)
+              sudo sed -i '/^Architectures:/d' "$f"
+              sudo sed -i '/^Types: /a Architectures: amd64' "$f"
+            fi
           done
 
           # Also handle any traditional .list files that may still exist.
@@ -160,7 +164,7 @@ jobs:
           sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null <<'SOURCES'
           Types: deb
           URIs: https://ports.ubuntu.com/ubuntu-ports/
-          Suites: noble noble-updates
+          Suites: noble noble-updates noble-security
           Components: main restricted universe multiverse
           Architectures: arm64
           Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
@@ -239,7 +243,7 @@ jobs:
               # The [host] Cargo config would be cleaner, but it is
               # still an unstable feature requiring nightly.
               # (Ref: https://github.com/rust-lang/cargo/issues/9452)
-              printf "#!/bin/sh\nexec \"\$@\" -C target-feature=-crt-static\n" \
+              printf "#!/bin/sh\nrustc=\"\$1\"\nshift\nexec \"\$rustc\" -C target-feature=-crt-static \"\$@\"\n" \
                 > /usr/local/bin/rustc-crt-dynamic
               chmod +x /usr/local/bin/rustc-crt-dynamic
               export RUSTC_WRAPPER=/usr/local/bin/rustc-crt-dynamic
