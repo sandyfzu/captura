@@ -181,10 +181,15 @@ const jpgResult: CaptureResult = await captureMonitor(id, 'Jpeg') // JPEG
 const results: CaptureResult[] = await captureAllMonitors()       // all monitors, PNG
 const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
 
-// Screen capture — Base64 string output (same format selection)
+// Screen capture — Raw RGBA pixels (fastest, no encoding overhead)
+const raw: CaptureResult = await captureMonitor(id, 'Raw')
+// raw.screenshot.data is a Buffer of width × height × 4 unencoded RGBA bytes
+
+// Screen capture — Base64 string output (same format selection, except Raw)
 const b64Result: Base64CaptureResult = await captureMonitorBase64(id)       // PNG
 const b64Jpg: Base64CaptureResult = await captureMonitorBase64(id, 'Jpeg')  // JPEG
 const b64All: Base64CaptureResult[] = await captureAllMonitorsBase64()      // all monitors
+// Note: passing 'Raw' to Base64 functions throws INVALID_ARGUMENT
 ```
 
 ### Data Structures
@@ -202,8 +207,8 @@ interface CaptureResult {
 
 interface Screenshot {
   size: Size
-  format: ImageFormat  // 'Png' | 'Jpeg' | 'WebP' | 'Avif'
-  data: Buffer         // Encoded image bytes
+  format: ImageFormat  // 'Raw' | 'Png' | 'Jpeg' | 'WebP' | 'Avif'
+  data: Buffer         // Raw RGBA8 pixels (format === 'Raw') or encoded image bytes
 }
 
 interface Base64CaptureResult {
@@ -213,7 +218,7 @@ interface Base64CaptureResult {
 
 interface Base64Screenshot {
   size: Size
-  format: ImageFormat  // 'Png' | 'Jpeg' | 'WebP' | 'Avif'
+  format: ImageFormat  // 'Png' | 'Jpeg' | 'WebP' | 'Avif' (Raw not allowed)
   data: string         // RFC 4648 Base64-encoded image
 }
 ```
@@ -252,13 +257,16 @@ interface Size {
 ## Memory & Data Handling
 
 - Use `Buffer` (via NAPI-rs `Buffer` type) for returning image data to JavaScript, or `string` for Base64-encoded output.
-- **Image buffers returned to JavaScript are encoded (e.g., PNG by default)**, not raw RGBA pixel data. A Node.js `Buffer` containing raw RGBA is not self-describing — the consumer would need out-of-band knowledge of dimensions and pixel format to use it. An encoded buffer (PNG) is immediately useful: it can be written to disk, served over HTTP, or passed to any image library without additional processing.
-- **Base64 variants** (`captureMonitorBase64`, `captureAllMonitorsBase64`) return the same encoded image data as an RFC 4648 Base64 string instead of a `Buffer`. Base64 encoding is performed on the Rust side using the `base64` crate before crossing the FFI boundary.
+- **Two data paths exist** — the Raw path and the encoded path. Both return a `Buffer`, but with different contents:
+  - **Raw** (`'Raw'` format): the `Buffer` contains the unmodified RGBA8 pixel data exactly as captured by the OS. No compression, no encoding — the pixel buffer is moved directly from Rust to JavaScript without copying. This is the **fastest capture path** because it skips all image processing. The buffer layout is 4 bytes per pixel (R, G, B, A), row-major, top-left to bottom-right, and its length is always `width × height × 4`. Use Raw when you plan to process pixels yourself (e.g. feed into `sharp`, draw on a canvas, upload as a WebGL texture, or re-encode with custom quality settings).
+  - **Encoded** (PNG, JPEG, WebP, AVIF): the `Buffer` contains a complete image file (e.g. a valid `.png`). It can be written to disk, served over HTTP, or passed to any image library without additional processing. Use an encoded format when you need a ready-to-use image file.
+- **Base64 variants** (`captureMonitorBase64`, `captureAllMonitorsBase64`) return the encoded image data as an RFC 4648 Base64 string instead of a `Buffer`. Base64 encoding is performed on the Rust side using the `base64` crate before crossing the FFI boundary. **Raw is not supported for Base64** — passing `'Raw'` to a Base64 function returns an `INVALID_ARGUMENT` error because raw pixel data is not self-describing and has no meaningful MIME type for data URIs.
 - Encoding is performed on the Rust side using the `image` crate (a direct dependency, also a transitive dependency via `xcap`) before transferring ownership to JavaScript.
 - Supported encoding formats (PNG, JPEG, WebP, AVIF) are selected via an optional parameter (PNG default) and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic. All formats use default encoder settings — WebP is lossless only.
-- Avoid unnecessary memory copies. Prefer zero-copy transfer where safe and practical.
-- Large image buffers must not be cloned unnecessarily — encode once on the Rust side and transfer ownership to JavaScript.
-- Be mindful of encoded buffer sizes, especially for high-DPI monitors (source RGBA is width × height × 4 bytes before encoding).
+- **Raw bypasses the utility encoding layer entirely.** In the core layer, `RgbaImage::into_raw()` moves the underlying `Vec<u8>` to the `Screenshot` struct with no copies and no allocations. The interop layer then wraps this `Vec<u8>` into a NAPI `Buffer`, which transfers ownership to the V8 garbage collector — again without copying.
+- For encoded formats, avoid unnecessary memory copies. Encode once on the Rust side and transfer ownership to JavaScript.
+- Large image buffers must not be cloned unnecessarily.
+- Be mindful of buffer sizes, especially for high-DPI monitors (source RGBA is width × height × 4 bytes — e.g. a 3840×2160 display produces ~33 MB of raw pixel data before encoding).
 
 ---
 
@@ -337,6 +345,7 @@ The architecture must support future additions without requiring structural chan
 
 ### Implemented features
 
+- **Raw capture** — Passing `'Raw'` as the format returns the RGBA8 pixel buffer directly, with no encoding or compression. This is the fastest capture path and the recommended choice when pixels will be processed, re-encoded with custom settings, or fed into libraries like `sharp` or a `<canvas>`. Raw bypasses the utility encoding layer entirely — `RgbaImage::into_raw()` moves the `Vec<u8>` through to JavaScript without any copies. Raw is not supported for Base64 functions.
 - **Multi-format encoding** — PNG (default), JPEG, WebP (lossless only), and AVIF are supported via an optional `format` parameter on every capture function. All use default encoder settings. Additional formats or fine-grained configuration can be added by extending the utility layer.
 - **Base64 encoding** — `captureMonitorBase64` and `captureAllMonitorsBase64` return screenshots as RFC 4648 Base64 strings instead of Buffers. Base64 encoding is performed on the Rust side using the `base64` crate.
 

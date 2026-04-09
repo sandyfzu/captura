@@ -128,6 +128,27 @@ describe('error handling', () => {
 
     it('captureAllMonitorsBase64 with invalid format', async () => {
       await assert.rejects(
+        () => captureAllMonitorsBase64('targa'),
+        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+      )
+    })
+
+    it('captureAllMonitorsBase64 with Raw format', async () => {
+      await assert.rejects(
+        () => captureAllMonitorsBase64('Raw'),
+        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+      )
+    })
+
+    it('captureMonitorBase64 with Raw format', async () => {
+      await assert.rejects(
+        () => captureMonitorBase64(1, 'Raw'),
+        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+      )
+    })
+
+    it('captureAllMonitorsBase64 with lowercase raw', async () => {
+      await assert.rejects(
         () => captureAllMonitorsBase64('raw'),
         (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
       )
@@ -317,9 +338,10 @@ describe('live capture', async () => {
 
   // -- Format support across capture functions ------------------------------
 
-  const formats = ['Png', 'Jpeg', 'WebP', 'Avif'] as const
+  const encodedFormats = ['Png', 'Jpeg', 'WebP', 'Avif'] as const
+  const allFormats = ['Raw', ...encodedFormats] as const
 
-  for (const fmt of formats) {
+  for (const fmt of allFormats) {
     it(`captureMonitor supports ${fmt} format`, async (t: TestContext) => {
       const ms = withMonitors(t, monitors)
       if (ms === undefined) return
@@ -333,7 +355,7 @@ describe('live capture', async () => {
     })
   }
 
-  for (const fmt of formats) {
+  for (const fmt of encodedFormats) {
     it(`captureMonitorBase64 supports ${fmt} format`, async (t: TestContext) => {
       const ms = withMonitors(t, monitors)
       if (ms === undefined) return
@@ -346,4 +368,26 @@ describe('live capture', async () => {
       assert.ok(result.screenshot.data.length > 0)
     })
   }
+
+  // -- Raw format specifics -------------------------------------------------
+
+  it('captureMonitor Raw returns RGBA buffer of expected size', async (t: TestContext) => {
+    const ms = withMonitors(t, monitors)
+    if (ms === undefined) return
+
+    const first = ms[0]
+    assert.ok(first !== undefined)
+
+    const result: CaptureResult = await captureMonitor(first.id, 'Raw')
+    assert.equal(result.screenshot.format, 'Raw')
+
+    const { width, height } = result.screenshot.size
+    const expectedBytes = width * height * 4
+    assert.equal(
+      result.screenshot.data.length,
+      expectedBytes,
+      `Raw buffer should be ${width}×${height}×4 = ${expectedBytes} bytes, ` +
+        `got ${result.screenshot.data.length}`,
+    )
+  })
 })
