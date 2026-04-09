@@ -88,14 +88,10 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             host: ubuntu-24.04
 
-          # ── Linux musl (built inside Alpine Docker containers) ──────────
+          # ── Linux musl (built inside Alpine Docker container) ───────────
           - target: x86_64-unknown-linux-musl
             host: ubuntu-24.04
             docker: true
-          - target: aarch64-unknown-linux-musl
-            host: ubuntu-24.04
-            docker: true
-            timeout: 200
 
     steps:
       - uses: actions/checkout@v6
@@ -189,25 +185,13 @@ jobs:
             libegl-dev:arm64 \
             libgbm-dev:arm64
 
-      # ── QEMU setup for arm64 musl Docker build ────────────────────────
-      - name: Setup QEMU
-        if: matrix.settings.target == 'aarch64-unknown-linux-musl'
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: arm64
-
       # ── musl: build inside Alpine Docker container ─────────────────────
       # Docker provides a native musl environment with the correct system
       # libraries. Rust is installed via rustup inside the container.
       - name: Build (musl via Alpine Docker)
         if: ${{ matrix.settings.docker }}
         run: |
-          DOCKER_PLATFORM=""
-          if [ "${{ matrix.settings.target }}" = "aarch64-unknown-linux-musl" ]; then
-            DOCKER_PLATFORM="--platform linux/arm64"
-          fi
-
-          docker run --rm $DOCKER_PLATFORM \
+          docker run --rm \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             node:${{ env.NODE_VERSION }}-alpine sh -c '
@@ -283,6 +267,64 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # ── aarch64 musl (QEMU-emulated, main-only) ─────────────────────────────
+  # This build takes ~2 hours under QEMU emulation so it only runs on pushes
+  # to main, keeping PR feedback fast. Regressions are caught before release.
+  build-musl-arm:
+    name: Build & Test aarch64-unknown-linux-musl
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Build (musl via Alpine Docker)
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            node:${{ env.NODE_VERSION }}-alpine sh -c '
+              set -eu
+
+              apk add --no-cache \
+                curl build-base clang-dev pkgconf \
+                libxcb-dev libxrandr-dev dbus-dev \
+                pipewire-dev wayland-dev mesa-dev
+
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
+                sh -s -- -y --default-toolchain stable
+              source "$HOME/.cargo/env"
+
+              printf "#!/bin/sh\nrustc=\"\$1\"\nshift\nexec \"\$rustc\" -C target-feature=-crt-static \"\$@\"\n" \
+                > /usr/local/bin/rustc-crt-dynamic
+              chmod +x /usr/local/bin/rustc-crt-dynamic
+              export RUSTC_WRAPPER=/usr/local/bin/rustc-crt-dynamic
+
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+
+              npm ci
+              npx napi build --platform --release -p xshot -o .
+              npm run typecheck
+              npm test
+            '
+
+          sudo chown -R "$(id -u):$(id -g)" .
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bindings-aarch64-unknown-linux-musl
+          path: |
+            *.node
+            index.js
+            index.d.ts
+          if-no-files-found: error
+          retention-days: 1
+
   # ── JS integration tests ─────────────────────────────────────────────────
   # Run on every platform with a native runner. Display-dependent tests are
   # automatically skipped in headless environments (Linux CI).
@@ -330,7 +372,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [check, build, test-js]
+    needs: [check, build, build-musl-arm, test-js]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -338,5 +380,7 @@ jobs:
         if: >-
           needs.check.result != 'success' ||
           needs.build.result != 'success' ||
-          needs.test-js.result != 'success'
+          needs.test-js.result != 'success' ||
+          (needs.build-musl-arm.result != 'success' &&
+           needs.build-musl-arm.result != 'skipped')
         run: exit 1
