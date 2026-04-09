@@ -65,7 +65,7 @@ jobs:
   build:
     name: Build ${{ matrix.settings.target }}
     runs-on: ${{ matrix.settings.host }}
-    timeout-minutes: 120
+    timeout-minutes: ${{ matrix.settings.timeout || 120 }}
     strategy:
       fail-fast: false
       matrix:
@@ -95,6 +95,7 @@ jobs:
           - target: aarch64-unknown-linux-musl
             host: ubuntu-24.04
             docker: true
+            timeout: 200
 
     steps:
       - uses: actions/checkout@v6
