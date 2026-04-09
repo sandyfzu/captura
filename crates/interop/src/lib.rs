@@ -186,15 +186,13 @@ fn parse_format(format: Option<String>) -> napi::Result<ImageFormat> {
 /// `Raw`.
 fn reject_raw_for_base64(format: ImageFormat) -> napi::Result<()> {
     if format == ImageFormat::Raw {
-        return Err(error::to_napi(
-            xshot_domain::XshotError::invalid_argument(
-                "Raw format is not supported for Base64 capture functions — \
+        return Err(error::to_napi(xshot_domain::XshotError::invalid_argument(
+            "Raw format is not supported for Base64 capture functions — \
                  raw RGBA8 pixel data is not self-describing and cannot be \
                  used in data URIs. Use captureMonitor() or \
                  captureAllMonitors() with 'Raw' instead, or choose an \
                  encoded format (Png, Jpeg, WebP, Avif) for Base64 output.",
-            ),
-        ));
+        )));
     }
     Ok(())
 }

@@ -1,0 +1,42 @@
+#!/usr/bin/env sh
+
+# ──────────────────────────────────────────────────────────────────────────────
+# pre-push — Full CI-equivalent validation before pushing
+# ──────────────────────────────────────────────────────────────────────────────
+# Runs once per push regardless of how many commits are included.
+# Every check here mirrors what the CI pipeline enforces.
+# ──────────────────────────────────────────────────────────────────────────────
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+step=0
+total=6
+
+run_step() {
+  step=$((step + 1))
+  printf "${CYAN}[%d/%d]${NC} %s\n" "$step" "$total" "$1"
+  if ! eval "$2"; then
+    printf "\n${RED}✗ Failed:${NC} %s\n" "$1"
+    printf "${RED}Push aborted. Fix the issue and try again.${NC}\n"
+    exit 1
+  fi
+  printf "${GREEN}✓${NC} %s\n\n" "$1"
+}
+
+printf "\n${CYAN}══════════════════════════════════════════${NC}\n"
+printf "${CYAN}  xshot pre-push checks${NC}\n"
+printf "${CYAN}══════════════════════════════════════════${NC}\n\n"
+
+run_step "Rust formatting"      "cargo fmt --all --check"
+run_step "Clippy lints"         "cargo clippy --workspace --all-targets --locked -- -D warnings"
+run_step "Rust tests"           "cargo test --workspace --locked"
+run_step "Native module build"  "npm run build"
+run_step "TypeScript typecheck" "npm run typecheck"
+run_step "Integration tests"    "npm test"
+
+printf "${GREEN}══════════════════════════════════════════${NC}\n"
+printf "${GREEN}  All pre-push checks passed${NC}\n"
+printf "${GREEN}══════════════════════════════════════════${NC}\n\n"

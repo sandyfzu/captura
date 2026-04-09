@@ -28,15 +28,21 @@
     "typecheck": "tsc --noEmit",
     "artifacts": "napi artifacts",
     "prepublishOnly": "napi prepublish -t npm",
-    "version": "napi version"
+    "version": "napi version",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@napi-rs/cli": "^3.5.1",
     "@types/node": "^22.19.15",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "typescript": "^6.0.2"
   },
   "files": [
     "index.js",
     "index.d.ts"
-  ]
+  ],
+  "lint-staged": {
+    "*.rs": "rustfmt"
+  }
 }
