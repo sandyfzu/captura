@@ -45,15 +45,19 @@ const EXPECTED_EXPORTS: ReadonlyMap<string, unknown> = new Map<string, unknown>(
 ])
 
 /**
- * Asserts that {@link err} is an `Error` whose `message` contains the given
- * {@link code} string. Returns `true` so it can be used as an
+ * Asserts that {@link err} is an `Error` whose `message` contains the
+ * given `[CODE]` prefix. Returns `true` so it can be used as an
  * `assert.rejects` validator.
+ *
+ * napi-rs v3 hardcodes the JS `err.code` to `"GenericFailure"` for async
+ * promise rejections, so the domain error code is embedded in the message
+ * as a `[CODE]` prefix instead.
  */
 function assertErrorCode(err: unknown, code: string): true {
   assert.ok(err instanceof Error, `Expected an Error, got ${typeof err}`)
   assert.ok(
     err.message.includes(code),
-    `Expected "${code}" in error message, got: "${err.message}"`,
+    `Expected err.message to contain "${code}", got: "${err.message}"`,
   )
   return true
 }

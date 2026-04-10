@@ -3274,6 +3274,7 @@ dependencies = [
 name = "xshot-core"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "log",
  "tokio",
  "xcap",

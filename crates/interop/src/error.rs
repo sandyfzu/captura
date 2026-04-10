@@ -1,26 +1,34 @@
 //! Conversion from [`XshotError`] to [`napi::Error`].
 //!
-//! The error code is embedded in the message in the format
-//! `[CODE] Human-readable description`, allowing JS consumers to match on
-//! the prefix for programmatic error handling:
+//! Every domain error is converted into a JavaScript `Error` whose `message`
+//! carries a structured `[CODE] description` prefix. The bracketed code
+//! enables programmatic matching on the JS side:
 //!
 //! ```js
 //! try {
 //!   await getMonitorById(999)
 //! } catch (err) {
-//!   console.log(err.message) // "[MONITOR_NOT_FOUND] No monitor with id 999"
+//!   // err.message === "[MONITOR_NOT_FOUND] Monitor not found: no monitor with id 999"
+//!   if (err.message.startsWith('[MONITOR_NOT_FOUND]')) { /* handle */ }
 //! }
 //! ```
+//!
+//! ## Why the code is in the message
+//!
+//! napi-rs v3 hardcodes the JS `err.code` to the `Status` enum string
+//! (e.g. `"GenericFailure"`) when rejecting async promises. There is no
+//! supported way to set a custom `.code` on rejected promises. Embedding
+//! the domain code in the message is the standard workaround.
 
 use napi::Error;
 use xshot_domain::XshotError;
 
 /// Converts a domain [`XshotError`] into a [`napi::Error`].
 ///
-/// The error message is formatted as `[CODE] description` so that JS code
-/// can programmatically identify error kinds.
+/// The resulting JavaScript `Error` has a `message` of the form
+/// `"[ERROR_CODE] Human-readable description"`.
 pub fn to_napi(e: XshotError) -> Error {
-    let code = e.code().as_str();
+    let code = e.code();
     let description = e.to_string();
     Error::from_reason(format!("[{code}] {description}"))
 }
@@ -31,13 +39,9 @@ mod tests {
     use xshot_domain::{XshotError, XshotErrorCode};
 
     /// Every [`XshotError`] variant must convert to a [`napi::Error`] whose
-    /// `reason` starts with `[CODE]` and contains the human-readable message.
-    ///
-    /// This is the contract that JavaScript consumers rely on for
-    /// programmatic error matching.
+    /// `reason` contains the `[CODE]` prefix and the human-readable message.
     #[test]
-    fn to_napi_includes_code_prefix_and_description() {
-        // (constructor, expected error code, expected substring in description)
+    fn to_napi_embeds_code_in_reason() {
         let cases: Vec<(XshotError, XshotErrorCode, &str)> = vec![
             (
                 XshotError::initialization("init failed"),
@@ -94,15 +98,19 @@ mod tests {
         for (error, expected_code, expected_substr) in cases {
             let code_str = expected_code.as_str();
             let napi_err = to_napi(error);
-            let reason = &napi_err.reason;
 
+            // reason must start with [CODE]
             assert!(
-                reason.starts_with(&format!("[{code_str}]")),
-                "expected reason to start with [{code_str}], got: {reason}"
+                napi_err.reason.starts_with(&format!("[{code_str}]")),
+                "expected reason to start with [{code_str}], got: {}",
+                napi_err.reason,
             );
+
+            // reason must also contain the human-readable description
             assert!(
-                reason.contains(expected_substr),
-                "expected reason to contain {expected_substr:?}, got: {reason}"
+                napi_err.reason.contains(expected_substr),
+                "expected reason to contain {expected_substr:?}, got: {}",
+                napi_err.reason,
             );
         }
     }

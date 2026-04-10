@@ -13,3 +13,6 @@ xshot-utils = { workspace = true }
 xcap = { workspace = true }
 tokio = { workspace = true }
 log = { workspace = true }
+
+[dev-dependencies]
+base64 = { workspace = true }

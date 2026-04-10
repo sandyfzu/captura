@@ -225,7 +225,10 @@ fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
     })?;
 
     // is_builtin may not be supported on all platforms; default to false.
-    let is_builtin = m.is_builtin().unwrap_or(false);
+    let is_builtin = m.is_builtin().unwrap_or_else(|e| {
+        debug!("monitor {id}: is_builtin unavailable, defaulting to false: {e}");
+        false
+    });
 
     let physical = Bounds {
         x,
@@ -585,6 +588,7 @@ pub async fn capture_all_monitors_base64(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine as _;
 
     // -- Coordinate normalisation (pure math) --------------------------------
     //
@@ -689,5 +693,100 @@ mod tests {
             let (x, y, _, _) = to_logical_dimensions(-3840, -200, 1920, 1080, 2.0);
             assert_eq!((x, y), (-1920, -100));
         }
+    }
+
+    // -- encode_capture (binary encoding helpers) ----------------------------
+
+    /// Helper: build a synthetic `RawCapture` with a 2×2 red RGBA image.
+    fn make_raw_capture(id: u32, width: u32, height: u32) -> RawCapture {
+        let mut pixels = vec![0u8; (width * height * 4) as usize];
+        for pixel in pixels.chunks_exact_mut(4) {
+            pixel.copy_from_slice(&[255, 0, 0, 255]); // opaque red
+        }
+        let image =
+            RgbaImage::from_raw(width, height, pixels).expect("test image should be constructible");
+        RawCapture {
+            info: MonitorInfo {
+                id,
+                name: format!("test-monitor-{id}"),
+                friendly_name: format!("Test Monitor {id}"),
+                physical: Bounds {
+                    x: 0,
+                    y: 0,
+                    width,
+                    height,
+                },
+                logical: Bounds {
+                    x: 0,
+                    y: 0,
+                    width,
+                    height,
+                },
+                rotation: 0.0,
+                scale_factor: 1.0,
+                frequency: 60.0,
+                is_primary: true,
+                is_builtin: false,
+            },
+            image,
+        }
+    }
+
+    #[test]
+    fn encode_capture_raw_bypasses_encoding() {
+        let raw = make_raw_capture(1, 2, 2);
+        let result = encode_capture(raw, ImageFormat::Raw).expect("Raw encoding should succeed");
+        // Raw returns the pixel buffer directly: 2×2×4 = 16 bytes.
+        assert_eq!(result.screenshot.data.len(), 16);
+        assert_eq!(result.screenshot.format, ImageFormat::Raw);
+        assert_eq!(result.screenshot.size.width, 2);
+        assert_eq!(result.screenshot.size.height, 2);
+        // First pixel should be opaque red.
+        assert_eq!(&result.screenshot.data[..4], &[255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn encode_capture_png_produces_valid_png() {
+        let raw = make_raw_capture(1, 2, 2);
+        let result = encode_capture(raw, ImageFormat::Png).expect("PNG encoding should succeed");
+        assert_eq!(result.screenshot.format, ImageFormat::Png);
+        // PNG magic bytes.
+        assert!(
+            result
+                .screenshot
+                .data
+                .starts_with(&[0x89, b'P', b'N', b'G'])
+        );
+    }
+
+    #[test]
+    fn encode_capture_preserves_monitor_info() {
+        let raw = make_raw_capture(42, 4, 4);
+        let result = encode_capture(raw, ImageFormat::Raw).expect("Raw should succeed");
+        assert_eq!(result.monitor.id, 42);
+        assert_eq!(result.monitor.name, "test-monitor-42");
+        assert!(result.monitor.is_primary);
+    }
+
+    #[test]
+    fn encode_capture_base64_produces_valid_base64() {
+        let raw = make_raw_capture(1, 2, 2);
+        let result =
+            encode_capture_base64(raw, ImageFormat::Png).expect("Base64 PNG should succeed");
+        assert_eq!(result.screenshot.format, ImageFormat::Png);
+        // Verify it's valid base64 that decodes to PNG.
+        let decoded = base64::prelude::BASE64_STANDARD
+            .decode(&result.screenshot.data)
+            .expect("output should be valid base64");
+        assert!(decoded.starts_with(&[0x89, b'P', b'N', b'G']));
+    }
+
+    #[test]
+    fn encode_capture_base64_preserves_dimensions() {
+        let raw = make_raw_capture(1, 4, 3);
+        let result =
+            encode_capture_base64(raw, ImageFormat::Jpeg).expect("Base64 JPEG should succeed");
+        assert_eq!(result.screenshot.size.width, 4);
+        assert_eq!(result.screenshot.size.height, 3);
     }
 }

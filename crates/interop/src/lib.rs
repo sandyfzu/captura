@@ -291,7 +291,7 @@ mod tests {
         let err = parse_format(Some("bmp".to_string())).unwrap_err();
         assert!(
             err.reason.contains("[INVALID_ARGUMENT]"),
-            "expected INVALID_ARGUMENT code, got: {}",
+            "expected [INVALID_ARGUMENT] in reason, got: {}",
             err.reason
         );
     }
@@ -301,7 +301,7 @@ mod tests {
         let err = parse_format(Some(String::new())).unwrap_err();
         assert!(
             err.reason.contains("[INVALID_ARGUMENT]"),
-            "expected INVALID_ARGUMENT code, got: {}",
+            "expected [INVALID_ARGUMENT] in reason, got: {}",
             err.reason
         );
     }
@@ -313,7 +313,7 @@ mod tests {
         let err = reject_raw_for_base64(ImageFormat::Raw).unwrap_err();
         assert!(
             err.reason.contains("[INVALID_ARGUMENT]"),
-            "expected INVALID_ARGUMENT code, got: {}",
+            "expected [INVALID_ARGUMENT] in reason, got: {}",
             err.reason
         );
         assert!(

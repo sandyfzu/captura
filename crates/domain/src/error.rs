@@ -68,8 +68,8 @@ impl fmt::Display for XshotErrorCode {
 /// `code` field, which eliminates the possibility of a mismatched code.
 ///
 /// When crossing the FFI boundary the interop layer converts this into a
-/// JavaScript `Error` with the code prefixed to the message:
-/// `[MONITOR_NOT_FOUND] Monitor not found: no monitor with id 42`.
+/// JavaScript `Error` with a structured message:
+/// `err.message === "[MONITOR_NOT_FOUND] Monitor not found: no monitor with id 42"`.
 #[derive(Debug, thiserror::Error)]
 pub enum XshotError {
     /// Failed to initialise the capture subsystem.
