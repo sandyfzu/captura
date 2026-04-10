@@ -1,5 +1,7 @@
 # xshot
 
+[![CI](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml/badge.svg)](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml)
+
 Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API.
 
 Built with [Rust](https://www.rust-lang.org/), [xcap](https://github.com/nashaofu/xcap), and [napi-rs](https://napi.rs/).
