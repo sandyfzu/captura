@@ -375,6 +375,7 @@ When extending, add new modules rather than modifying existing ones. Follow the 
 - Documentation must be kept up-to-date with code changes. Outdated documentation is worse than no documentation.
 - Document the expected behavior in error scenarios (e.g., what happens if permissions are denied on macOS? What error is thrown if an invalid monitor ID is used?).
 - Documentation must be ready to generate API reference docs using `cargo doc` without additional manual editing.
+- Some implementation details like xcap, napi-rs, image crate, etc specifics must be omitted from public documentation but should be covered in internal docs for maintainers.
 
 ---
 
