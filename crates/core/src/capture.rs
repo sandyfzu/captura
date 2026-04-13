@@ -54,7 +54,7 @@ use xshot_utils::{encode_rgba, encode_rgba_base64};
 // ---------------------------------------------------------------------------
 
 /// The raw result of a single monitor capture — monitor metadata paired with
-/// the unencoded RGBA pixel buffer straight from the OS.
+/// the unencoded RGBA pixel buffer.
 ///
 /// This is an internal type that never leaves the core layer. Public
 /// functions consume it and apply the requested encoding (binary or Base64)

@@ -119,7 +119,7 @@ pub struct Size {
 ///
 /// Encoded formats (PNG, JPEG, WebP, AVIF) use default encoder settings.
 /// For fine-grained control over encoding parameters (e.g. JPEG quality,
-/// AVIF speed), capture as `Raw` (zero-copy RGBA8 pixel data) and encode
+/// AVIF speed), capture as `Raw` (unencoded RGBA8 pixel data) and encode
 /// externally with your preferred image library.
 ///
 /// # Supported formats
@@ -134,9 +134,8 @@ pub struct Size {
 ///
 /// # Raw format
 ///
-/// When `Raw` is selected, `Screenshot::data` contains the raw RGBA8 pixel
-/// buffer exactly as captured by the OS — **no encoding, no compression,
-/// no copies**. The buffer layout is:
+/// When `Raw` is selected, `Screenshot::data` contains the RGBA8 pixel
+/// buffer — **no encoding, no compression**. The buffer layout is:
 ///
 /// - 4 bytes per pixel: R, G, B, A (in that order).
 /// - Pixels are in row-major order, top-left to bottom-right.

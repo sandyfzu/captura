@@ -23,8 +23,7 @@ Node.js, built with Rust.
   `captureAllMonitorsBase64(format?)` return screenshots as RFC 4648 Base64
   strings.
 - **Raw format** — pass `'Raw'` to receive the unencoded RGBA8 pixel buffer
-  directly from the OS with zero encoding overhead and zero copies
-  (`RgbaImage::into_raw()` → NAPI `Buffer`).
+  with no image encoding or compression — the fastest capture path.
 - **Multi-format encoding** — PNG (default), JPEG, WebP (lossless), and AVIF,
   selectable via an optional `format` parameter on every capture function.
   Format parsing is case-insensitive and accepts `'Jpg'` as an alias for
@@ -41,7 +40,7 @@ Node.js, built with Rust.
   `INTERNAL_ERROR`, `TIMEOUT_ERROR`, `RESOURCE_UNAVAILABLE`) surfaced as
   JavaScript `Error` objects with `[CODE]` prefixed messages.
 - **Async API** — every public function returns a `Promise`. Blocking OS calls
-  run on `tokio::task::spawn_blocking` and never stall the Node.js event loop.
+  are offloaded to background threads and never stall the Node.js event loop.
 - **TypeScript definitions** — auto-generated `.d.ts` with rich JSDoc
   documentation, including platform-specific tables for monitor name fields.
 - **8 build targets** — macOS x64/arm64, Windows x64/arm64, Linux GNU

@@ -8,7 +8,7 @@
 //!
 //! The core layer calls these functions for all **encoded** formats.
 //! The [`ImageFormat::Raw`] variant bypasses this module entirely — the
-//! raw RGBA8 pixel buffer is moved directly to the caller without
+//! raw RGBA8 pixel buffer is passed through to the caller without
 //! encoding. If you need fine-grained control over encoding parameters,
 //! capture as `Raw` and encode externally.
 //!

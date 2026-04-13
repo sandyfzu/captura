@@ -2,16 +2,14 @@
 
 [![CI](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml/badge.svg)](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml)
 
-Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API.
-
-Built with [Rust](https://www.rust-lang.org/), [xcap](https://github.com/nashaofu/xcap), and [napi-rs](https://napi.rs/).
+Cross-platform screen capture for Node.js — a high-performance native module built with [Rust](https://www.rust-lang.org/) and a fully typed async TypeScript API.
 
 ## Features
 
 - **Cross-platform** — macOS (x64, arm64), Windows (x64, arm64), Linux (x64, arm64 — glibc and musl)
 - **Async/Promise-based** — every function returns a `Promise` and never blocks the Node.js event loop
 - **Fully typed** — auto-generated TypeScript definitions with rich JSDoc documentation
-- **Multi-format** — Raw (zero-copy RGBA), PNG (default), JPEG, WebP, and AVIF output
+- **Multi-format** — Raw (unencoded RGBA), PNG (default), JPEG, WebP, and AVIF output
 - **Buffer & Base64** — get screenshots as a Node.js `Buffer` or a Base64 string
 - **Physical & logical coordinates** — monitor metadata exposes both pixel-exact and DIP geometry
 
@@ -71,9 +69,9 @@ writeFileSync('screenshot.jpg', jpg.screenshot.data)
 ### Capture raw RGBA pixels (fastest)
 
 ```ts
-// 'Raw' skips image compression entirely — it returns the pixel data
-// straight from the OS, making it significantly faster than any encoded
-// format.  Use it when you plan to process the pixels yourself.
+// 'Raw' skips image encoding entirely — it returns the RGBA8 pixel
+// buffer with no compression, making it significantly faster than any
+// encoded format. Use it when you plan to process the pixels yourself.
 const raw = await captureMonitor(1, 'Raw')
 const { width, height } = raw.screenshot.size
 
@@ -211,7 +209,7 @@ try {
 ## Platform Notes
 
 - **macOS** — Screen recording permission is required. The OS will prompt on first use. If denied, functions throw `PERMISSION_DENIED`.
-- **Linux** — Supports X11 and Wayland (via xcap). Some Wayland compositors may have limited support.
+- **Linux** — Supports X11 and Wayland. Some Wayland compositors may have limited support.
 - **Windows** — No special permissions required.
 
 ## License
