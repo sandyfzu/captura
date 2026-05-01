@@ -2,6 +2,24 @@
   "name": "xshot",
   "version": "0.9.0",
   "description": "Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API",
+  "keywords": [
+    "screenshot",
+    "screen-capture",
+    "screen",
+    "capture",
+    "native",
+    "napi-rs",
+    "rust",
+    "xcap"
+  ],
+  "homepage": "https://github.com/sandyfzu/xshot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sandyfzu/xshot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sandyfzu/xshot/issues"
+  },
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
@@ -40,7 +58,9 @@
   },
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "CHANGELOG.md",
+    "RELEASE.md"
   ],
   "lint-staged": {
     "*.rs": "rustfmt"

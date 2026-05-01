@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Corrected public documentation for async error matching: xshot domain error
+  codes are documented as `[CODE]` message prefixes instead of a custom
+  `err.code` property.
+- Added maintainer release-readiness documentation for NAPI-RS platform package
+  generation, packed-tarball verification, and first-stable release gates.
+- Clarified that high-concurrency encode scheduling is an application-level
+  policy decision; xshot offloads blocking work but does not impose a global
+  concurrency limit across independent calls.
+
+### Fixed
+
+- Clarified macOS permission-denied behavior so the README no longer promises
+  `PERMISSION_DENIED` when the upstream OS/capture error is not distinguishable.
+
 ## [0.9.0] - 2026-04-10
 
 Initial release of xshot — a cross-platform screen capture native module for

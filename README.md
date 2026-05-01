@@ -23,6 +23,10 @@ Cross-platform screen capture for Node.js — a high-performance native module b
 npm install xshot
 ```
 
+Maintainers preparing a release should follow the native package checklist in
+[RELEASE.md](RELEASE.md). The published package must include the generated
+platform packages expected by the NAPI-RS loader.
+
 ## Quick Start
 
 ```ts
@@ -108,7 +112,7 @@ const all = await captureAllMonitorsBase64('Avif')
 ### Functions
 
 | Function | Returns | Description |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `getMonitors()` | `Promise<Monitor[]>` | Metadata for all connected monitors |
 | `getMonitorById(id)` | `Promise<Monitor>` | Metadata for a single monitor (throws `MONITOR_NOT_FOUND`) |
 | `captureMonitor(id, format?)` | `Promise<CaptureResult>` | Screenshot as a `Buffer` |
@@ -121,12 +125,12 @@ const all = await captureAllMonitorsBase64('Avif')
 The optional `format` parameter accepts (case-insensitive):
 
 | Value | MIME Type | Notes |
-|-------|-----------|-------|
+| --- | --- | --- |
 | `'Raw'` | `application/octet-stream` | Unencoded RGBA8 pixels. **Fastest** — skips compression entirely. Not supported for Base64 functions. |
 | `'Png'` | `image/png` | **Default.** Lossless, pixel-perfect. |
 | `'Jpeg'` / `'Jpg'` | `image/jpeg` | Lossy, default quality. |
 | `'WebP'` | `image/webp` | Lossless only. |
-| `'Avif'` | `image/avif` | Default speed and quality. |
+| `'Avif'` | `image/avif` | Default speed and quality. Usually the slowest built-in encoder. |
 
 > **Note:** Passing `'Raw'` to `captureMonitorBase64()` or `captureAllMonitorsBase64()` throws an `INVALID_ARGUMENT` error. Raw pixel data is not self-describing and cannot be used in data URIs.
 
@@ -181,24 +185,45 @@ interface Size {
 }
 ```
 
+### Performance Notes
+
+Capture and encoding work is offloaded from the Node.js main thread. xshot does
+not impose a global concurrency limit across independent calls: applications
+that start many high-resolution encoded captures at the same time should decide
+their own queueing/backpressure policy based on their workload, latency target,
+and host CPU budget. Use `'Raw'` when you need to process or encode pixels with
+your own pipeline.
+
+`captureAllMonitors()` and `captureAllMonitorsBase64()` capture monitors
+sequentially inside one request to avoid unnecessary contention in the OS capture
+subsystem.
+
 ### Error Handling
 
-All errors are standard JavaScript `Error` objects with a `code` string for programmatic matching:
+All failures are surfaced as JavaScript `Error` objects. The stable xshot domain
+code is embedded at the start of `err.message` as a `[CODE]` prefix:
 
 ```ts
 try {
   await captureMonitor(999)
 } catch (err) {
-  // err.message: "[MONITOR_NOT_FOUND] Monitor not found: no monitor with id 999"
+  if (err instanceof Error && err.message.startsWith('[MONITOR_NOT_FOUND]')) {
+    // handle missing monitor
+  }
 }
 ```
 
+Do not rely on `err.code` for xshot domain matching in the current async API.
+NAPI-RS v3 promise rejections expose the NAPI status code there; xshot keeps the
+domain code in the message prefix so it remains visible and testable across all
+async exports.
+
 | Error Code | Description |
-|------------|-------------|
+| --- | --- |
 | `INITIALIZATION_ERROR` | Failure during module initialisation |
 | `MONITOR_NOT_FOUND` | Requested monitor ID does not exist |
 | `CAPTURE_FAILED` | Screenshot operation failed |
-| `PERMISSION_DENIED` | OS denied screen capture permission |
+| `PERMISSION_DENIED` | Explicitly detected OS screen-capture permission denial |
 | `PLATFORM_NOT_SUPPORTED` | Feature unavailable on this OS |
 | `ENCODING_ERROR` | Image encoding failure |
 | `INVALID_ARGUMENT` | Invalid parameter (e.g. bad format string) |
@@ -208,7 +233,10 @@ try {
 
 ## Platform Notes
 
-- **macOS** — Screen recording permission is required. The OS will prompt on first use. If denied, functions throw `PERMISSION_DENIED`.
+- **macOS** — Screen recording permission is required. If the OS or upstream
+  capture layer reports a distinguishable permission denial, xshot surfaces
+  `PERMISSION_DENIED`; otherwise the failed capture is reported as
+  `CAPTURE_FAILED` with the platform error text in the message.
 - **Linux** — Supports X11 and Wayland. Some Wayland compositors may have limited support.
 - **Windows** — No special permissions required.
 
