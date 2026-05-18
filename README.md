@@ -17,6 +17,41 @@ Cross-platform screen capture for Node.js — a high-performance native module b
 
 - **Node.js** >= 20.3.0 (N-API 9)
 
+### Linux native dependencies
+
+xshot uses native X11, Wayland, PipeWire, D-Bus, EGL, and GBM libraries on
+Linux. Desktop Ubuntu installations usually include many of these libraries
+already, but minimal images and containers may need them installed before the
+native addon can load or before Wayland capture can talk to the desktop portal
+services.
+
+For Ubuntu 24.04 runtime installations, install:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  libxcb1 libxrandr2 libdbus-1-3 \
+  libpipewire-0.3-0t64 libwayland-client0 libegl1 libgbm1 \
+  xdg-desktop-portal
+```
+
+On Ubuntu releases that do not use the `t64` PipeWire runtime package name,
+install `libpipewire-0.3-0` instead of `libpipewire-0.3-0t64`.
+
+If you are building xshot from source or rebuilding the native addon on Ubuntu,
+install the development headers too:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y pkg-config libclang-dev \
+  libxcb1-dev libxrandr-dev libdbus-1-dev \
+  libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
+```
+
+These package lists are based on xshot's Ubuntu 24.04 CI build configuration.
+`libgbm-dev`/`libgbm1` are included because xshot's Wayland capture layer
+requires GBM.
+
 ## Installation
 
 ```bash

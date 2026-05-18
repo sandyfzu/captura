@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,7 +21,9 @@ env:
 # Linux system packages required by xcap
 # ---------------------------------------------------------------------------
 # xcap depends on X11/Wayland/PipeWire/EGL system libraries.
-# GNU targets install them via apt; musl targets via Alpine apk inside Docker.
+# GNU targets install them via apt on native Ubuntu runners; release GNU
+# binaries are built on Ubuntu 22.04 as the default compatibility baseline.
+# Musl targets use Alpine apk inside Docker on a matching native host.
 #
 # apt (Debian/Ubuntu):
 #   pkg-config libclang-dev libxcb1-dev libxrandr-dev libdbus-1-dev
@@ -34,13 +37,31 @@ env:
 jobs:
   # ── Rust quality checks ──────────────────────────────────────────────────
   check:
-    name: Rust (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Rust (${{ matrix.settings.label }})
+    runs-on: ${{ matrix.settings.host }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest, windows-latest]
+        settings:
+          - label: Linux x64 GNU
+            host: ubuntu-22.04
+            node_arch: x64
+          - label: Linux ARM64 GNU
+            host: ubuntu-22.04-arm
+            node_arch: arm64
+          - label: macOS Intel
+            host: macos-15-intel
+            node_arch: x64
+          - label: macOS ARM64
+            host: macos-15
+            node_arch: arm64
+          - label: Windows x64
+            host: windows-2025
+            node_arch: x64
+          - label: Windows ARM64
+            host: windows-11-arm
+            node_arch: arm64
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
@@ -48,8 +69,21 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify native Node.js architecture
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.settings.node_arch }}
+        run: |
+          node -e 'const actual = process.arch; const expected = process.env.EXPECTED_NODE_ARCH; if (actual !== expected) { throw new Error("Expected native Node.js " + expected + ", got " + actual); }'
+
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libclang-dev \
@@ -72,35 +106,68 @@ jobs:
 
   # ── Build native module ──────────────────────────────────────────────────
   build:
-    name: Build ${{ matrix.settings.target }}
+    name: Build ${{ matrix.settings.label }}
     runs-on: ${{ matrix.settings.host }}
-    timeout-minutes: ${{ matrix.settings.timeout || 120 }}
+    timeout-minutes: ${{ matrix.settings.timeout }}
     strategy:
       fail-fast: false
       matrix:
         settings:
           # ── macOS ────────────────────────────────────────────────────────
           - target: x86_64-apple-darwin
-            host: macos-15
+            label: x86_64-apple-darwin
+            host: macos-15-intel
+            timeout: 120
+            docker: false
+            node_arch: x64
           - target: aarch64-apple-darwin
-            host: macos-latest
+            label: aarch64-apple-darwin
+            host: macos-15
+            timeout: 120
+            docker: false
+            node_arch: arm64
 
           # ── Windows ─────────────────────────────────────────────────────
           - target: x86_64-pc-windows-msvc
-            host: windows-latest
+            label: x86_64-pc-windows-msvc
+            host: windows-2025
+            timeout: 120
+            docker: false
+            node_arch: x64
           - target: aarch64-pc-windows-msvc
-            host: windows-latest
+            label: aarch64-pc-windows-msvc
+            host: windows-11-arm
+            timeout: 120
+            docker: false
+            node_arch: arm64
 
           # ── Linux GNU ───────────────────────────────────────────────────
           - target: x86_64-unknown-linux-gnu
-            host: ubuntu-24.04
+            label: x86_64-unknown-linux-gnu on Ubuntu 22.04
+            host: ubuntu-22.04
+            timeout: 120
+            docker: false
+            node_arch: x64
           - target: aarch64-unknown-linux-gnu
-            host: ubuntu-24.04
+            label: aarch64-unknown-linux-gnu on Ubuntu 22.04 ARM64
+            host: ubuntu-22.04-arm
+            timeout: 120
+            docker: false
+            node_arch: arm64
 
           # ── Linux musl (built inside Alpine Docker container) ───────────
           - target: x86_64-unknown-linux-musl
+            label: x86_64-unknown-linux-musl
             host: ubuntu-24.04
+            timeout: 120
             docker: true
+            node_arch: x64
+          - target: aarch64-unknown-linux-musl
+            label: aarch64-unknown-linux-musl on Ubuntu ARM64
+            host: ubuntu-24.04-arm
+            timeout: 120
+            docker: true
+            node_arch: arm64
 
     steps:
       - uses: actions/checkout@v6
@@ -118,93 +185,52 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Install npm dependencies
         if: ${{ !matrix.settings.docker }}
         run: npm ci
 
-      # ── x86_64-linux-gnu: native build with system deps ────────────────
-      - name: Install system dependencies (x86_64-linux-gnu)
-        if: matrix.settings.target == 'x86_64-unknown-linux-gnu'
+      - name: Verify native Node.js architecture
+        if: ${{ !matrix.settings.docker }}
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.settings.node_arch }}
+        run: |
+          node -e 'const actual = process.arch; const expected = process.env.EXPECTED_NODE_ARCH; if (actual !== expected) { throw new Error("Expected native Node.js " + expected + ", got " + actual); }'
+
+      # ── Linux GNU: native build with system deps ───────────────────────
+      - name: Install system dependencies (linux-gnu)
+        if: runner.os == 'Linux' && !matrix.settings.docker
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libclang-dev \
             libxcb1-dev libxrandr-dev libdbus-1-dev \
             libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 
-      # ── aarch64-linux-gnu: multiarch cross-compilation ─────────────────
-      - name: Setup cross-compilation (aarch64-linux-gnu)
-        if: matrix.settings.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo dpkg --add-architecture arm64
-
-          # Ubuntu 24.04 uses DEB822 format (.sources files). Restrict
-          # every existing source stanza to amd64 so that apt does not
-          # try to fetch arm64 indices from mirrors that don't carry them.
-          for f in /etc/apt/sources.list.d/*.sources; do
-            if [ -f "$f" ]; then
-              # Remove existing Architectures: lines first (idempotent)
-              sudo sed -i '/^Architectures:/d' "$f"
-              sudo sed -i '/^Types: /a Architectures: amd64' "$f"
-            fi
-          done
-
-          # Also handle any traditional .list files that may still exist.
-          # The runner image pre-installs Docker, Microsoft Edge, GitHub CLI,
-          # etc., which add .list files with https:// URIs and [signed-by=...]
-          # option blocks. A naive sed on "deb http" misses all of those.
-          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.list; do
-            [ -f "$f" ] && sudo perl -0pi -e '
-              s{^deb(\s+)\[([^\]]*)\](\s+https?://)}{
-                my ($ws, $opts, $uri_ws) = ($1, $2, $3);
-                $opts =~ /\barch=amd64\b/
-                  ? "deb${ws}[${opts}]${uri_ws}"
-                  : "deb${ws}[${opts} arch=amd64]${uri_ws}";
-              }gme;
-              s{^deb(\s+)(https?://)}{"deb${1}[arch=amd64] ${2}"}gme;
-            ' "$f" 2>/dev/null || true
-          done
-
-          # arm64 packages live on ports.ubuntu.com
-          sudo tee /etc/apt/sources.list.d/arm64-ports.sources > /dev/null <<'SOURCES'
-          Types: deb
-          URIs: https://ports.ubuntu.com/ubuntu-ports/
-          Suites: noble noble-updates noble-security
-          Components: main restricted universe multiverse
-          Architectures: arm64
-          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-          SOURCES
-
-          sudo apt-get update
-
-          # Cross-compiler + host libclang (needed by bindgen)
-          sudo apt-get install -y \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            pkg-config \
-            libclang-dev
-
-          # Target-architecture xcap development libraries
-          sudo apt-get install -y \
-            libxcb1-dev:arm64 \
-            libxrandr-dev:arm64 \
-            libdbus-1-dev:arm64 \
-            libpipewire-0.3-dev:arm64 \
-            libwayland-dev:arm64 \
-            libegl-dev:arm64 \
-            libgbm-dev:arm64
-
       # ── musl: build inside Alpine Docker container ─────────────────────
       # Docker provides a native musl environment with the correct system
       # libraries. Rust is installed via rustup inside the container.
       - name: Build (musl via Alpine Docker)
         if: ${{ matrix.settings.docker }}
+        shell: bash
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.settings.node_arch }}
+          NAPI_TARGET: ${{ matrix.settings.target }}
         run: |
           docker run --rm \
+            -e EXPECTED_NODE_ARCH \
+            -e NAPI_TARGET \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             node:${{ env.NODE_VERSION }}-alpine sh -c '
               set -eu
+
+              actual_arch="$(node -p "process.arch")"
+              if [ "$actual_arch" != "$EXPECTED_NODE_ARCH" ]; then
+                echo "Expected native Node.js $EXPECTED_NODE_ARCH, got $actual_arch" >&2
+                exit 1
+              fi
 
               # System dependencies for xcap
               apk add --no-cache \
@@ -215,7 +241,7 @@ jobs:
               # Rust toolchain
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
                 sh -s -- -y --default-toolchain stable
-              source "$HOME/.cargo/env"
+              . "$HOME/.cargo/env"
 
               # On musl, Rust statically links the CRT by default
               # (+crt-static), which stubs dlopen(). bindgen (used by
@@ -248,7 +274,7 @@ jobs:
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
 
               npm ci
-              npx napi build --platform --release -p xshot -o .
+              npx napi build --platform --release -p xshot -o . --target "$NAPI_TARGET" -- --locked
             '
 
           # Fix file ownership after Docker (container runs as root)
@@ -257,14 +283,7 @@ jobs:
       # ── Non-Docker build ───────────────────────────────────────────────
       - name: Build
         if: ${{ !matrix.settings.docker }}
-        env:
-          # aarch64-linux-gnu cross-compilation (ignored by other targets)
-          CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
-          CXX_aarch64_unknown_linux_gnu: aarch64-linux-gnu-g++
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          PKG_CONFIG_ALLOW_CROSS: '1'
-          PKG_CONFIG_LIBDIR_aarch64_unknown_linux_gnu: /usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
-        run: npx napi build --platform --release -p xshot -o . --target ${{ matrix.settings.target }}
+        run: npx napi build --platform --release -p xshot -o . --target ${{ matrix.settings.target }} -- --locked
 
       - uses: actions/upload-artifact@v7
         with:
@@ -274,71 +293,15 @@ jobs:
             index.js
             index.d.ts
           if-no-files-found: error
-          retention-days: 1
-
-  # ── aarch64 musl (QEMU-emulated, main-only) ─────────────────────────────
-  # This build takes ~2 hours under QEMU emulation so it only runs on pushes
-  # to main, keeping PR feedback fast. Regressions are caught before release.
-  build-musl-arm:
-    name: Build & Test aarch64-unknown-linux-musl
-    if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 200
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: arm64
-
-      - name: Build (musl via Alpine Docker)
-        run: |
-          docker run --rm --platform linux/arm64 \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            node:${{ env.NODE_VERSION }}-alpine sh -c '
-              set -eu
-
-              apk add --no-cache \
-                curl build-base clang-dev pkgconf \
-                libxcb-dev libxrandr-dev dbus-dev \
-                pipewire-dev wayland-dev mesa-dev
-
-              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | \
-                sh -s -- -y --default-toolchain stable
-              source "$HOME/.cargo/env"
-
-              printf "#!/bin/sh\nrustc=\"\$1\"\nshift\nexec \"\$rustc\" -C target-feature=-crt-static \"\$@\"\n" \
-                > /usr/local/bin/rustc-crt-dynamic
-              chmod +x /usr/local/bin/rustc-crt-dynamic
-              export RUSTC_WRAPPER=/usr/local/bin/rustc-crt-dynamic
-
-              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
-
-              npm ci
-              npx napi build --platform --release -p xshot -o .
-              npm run typecheck
-              npm test
-            '
-
-          sudo chown -R "$(id -u):$(id -g)" .
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: bindings-aarch64-unknown-linux-musl
-          path: |
-            *.node
-            index.js
-            index.d.ts
-          if-no-files-found: error
+          compression-level: 0
           retention-days: 1
 
   # ── JS integration tests ─────────────────────────────────────────────────
-  # Run on every platform with a native runner. Display-dependent tests are
-  # automatically skipped in headless environments (Linux CI).
+  # Run on every GNU/macOS/Windows platform with a native runner. Linux GNU is
+  # tested on the Ubuntu 22.04 build baseline and Ubuntu 24.04 forward runtime.
+  # Display-dependent tests are automatically skipped in headless environments.
   test-js:
-    name: Test JS (${{ matrix.settings.target }})
+    name: Test JS (${{ matrix.settings.label }})
     needs: build
     runs-on: ${{ matrix.settings.host }}
     timeout-minutes: 15
@@ -347,32 +310,147 @@ jobs:
       matrix:
         settings:
           - target: aarch64-apple-darwin
-            host: macos-latest
+            label: aarch64-apple-darwin
+            host: macos-15
+            node_arch: arm64
+          - target: x86_64-apple-darwin
+            label: x86_64-apple-darwin
+            host: macos-15-intel
+            node_arch: x64
           - target: x86_64-pc-windows-msvc
-            host: windows-latest
+            label: x86_64-pc-windows-msvc
+            host: windows-2025
+            node_arch: x64
+          - target: aarch64-pc-windows-msvc
+            label: aarch64-pc-windows-msvc
+            host: windows-11-arm
+            node_arch: arm64
           - target: x86_64-unknown-linux-gnu
+            label: x86_64-unknown-linux-gnu on Ubuntu 22.04
+            host: ubuntu-22.04
+            node_arch: x64
+          - target: aarch64-unknown-linux-gnu
+            label: aarch64-unknown-linux-gnu on Ubuntu 22.04 ARM64
+            host: ubuntu-22.04-arm
+            node_arch: arm64
+          - target: x86_64-unknown-linux-gnu
+            label: x86_64-unknown-linux-gnu on Ubuntu 24.04
             host: ubuntu-24.04
+            node_arch: x64
+          - target: aarch64-unknown-linux-gnu
+            label: aarch64-unknown-linux-gnu on Ubuntu 24.04 ARM64
+            host: ubuntu-24.04-arm
+            node_arch: arm64
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verify native Node.js architecture
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.settings.node_arch }}
+        run: |
+          node -e 'const actual = process.arch; const expected = process.env.EXPECTED_NODE_ARCH; if (actual !== expected) { throw new Error("Expected native Node.js " + expected + ", got " + actual); }'
+
       - run: npm ci
 
       - uses: actions/download-artifact@v8
         with:
           name: bindings-${{ matrix.settings.target }}
+          digest-mismatch: error
+
+      - name: Verify downloaded artifact files
+        env:
+          NAPI_TARGET: ${{ matrix.settings.target }}
+        run: |
+          node -e 'const fs = require("fs"); const target = process.env.NAPI_TARGET; const bindings = fs.readdirSync(".").filter((name) => name.endsWith(".node")); for (const file of ["index.js", "index.d.ts"]) { if (!fs.existsSync(file)) { throw new Error("Missing " + file + " in artifact for " + target); } } if (bindings.length !== 1) { throw new Error("Expected exactly one .node binding for " + target + ", found " + bindings.length + ": " + bindings.join(", ")); }'
 
       - name: Install Linux runtime dependencies
         if: runner.os == 'Linux'
+        shell: bash
         run: |
+          . /etc/os-release
+          pipewire_runtime=libpipewire-0.3-0
+          if [[ "${VERSION_CODENAME:-}" == "noble" || "${VERSION_ID:-}" == "24.04" ]]; then
+            pipewire_runtime=libpipewire-0.3-0t64
+          fi
+
           sudo apt-get update
           sudo apt-get install -y libxcb1 libxrandr2 libdbus-1-3 \
-            libpipewire-0.3-0 libwayland-client0 libegl1 libgbm1
+            "$pipewire_runtime" libwayland-client0 libegl1 libgbm1
 
       - run: npm run typecheck
       - run: npm test
+
+  # ── JS integration tests: Linux musl ─────────────────────────────────────
+  # Musl artifacts must be tested inside Alpine. Docker runs on a matching
+  # native Ubuntu host architecture, so no QEMU or emulation is involved.
+  test-musl:
+    name: Test JS (${{ matrix.settings.label }})
+    needs: build
+    runs-on: ${{ matrix.settings.host }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          - target: x86_64-unknown-linux-musl
+            label: x86_64-unknown-linux-musl on Alpine x64
+            host: ubuntu-24.04
+            node_arch: x64
+          - target: aarch64-unknown-linux-musl
+            label: aarch64-unknown-linux-musl on Alpine ARM64
+            host: ubuntu-24.04-arm
+            node_arch: arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          digest-mismatch: error
+
+      - name: Verify downloaded artifact files
+        shell: bash
+        run: |
+          shopt -s nullglob
+          bindings=(*.node)
+          if (( ${#bindings[@]} != 1 )); then
+            printf 'Expected exactly one .node binding, found %s: %s\n' "${#bindings[@]}" "${bindings[*]}" >&2
+            exit 1
+          fi
+          test -f index.js
+          test -f index.d.ts
+
+      - name: Test in native Alpine Docker
+        shell: bash
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.settings.node_arch }}
+        run: |
+          docker run --rm \
+            -e EXPECTED_NODE_ARCH \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            node:${{ env.NODE_VERSION }}-alpine sh -c '
+              set -eu
+
+              actual_arch="$(node -p "process.arch")"
+              if [ "$actual_arch" != "$EXPECTED_NODE_ARCH" ]; then
+                echo "Expected native Node.js $EXPECTED_NODE_ARCH, got $actual_arch" >&2
+                exit 1
+              fi
+
+              apk add --no-cache \
+                libxcb-dev libxrandr-dev dbus-dev \
+                pipewire-dev wayland-dev mesa-dev
+
+              npm ci
+              npm run typecheck
+              npm test
+            '
 
   # ── CI gate ──────────────────────────────────────────────────────────────
   # Single required check for branch protection. With matrix strategies, job
@@ -381,7 +459,7 @@ jobs:
   ci:
     name: CI
     if: always()
-    needs: [check, deny, build, build-musl-arm, test-js]
+    needs: [check, deny, build, test-js, test-musl]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -391,6 +469,5 @@ jobs:
           needs.deny.result != 'success' ||
           needs.build.result != 'success' ||
           needs.test-js.result != 'success' ||
-          (needs.build-musl-arm.result != 'success' &&
-           needs.build-musl-arm.result != 'skipped')
+           needs.test-musl.result != 'success'
         run: exit 1
