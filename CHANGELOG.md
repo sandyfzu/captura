@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `err.code` property.
 - Added maintainer release-readiness documentation for NAPI-RS platform package
   generation, packed-tarball verification, and first-stable release gates.
+- Added a dedicated release workflow that builds all native targets, generates
+  NAPI-RS platform packages, validates tarballs, smoke-tests installs, and
+  publishes platform packages before the root package.
+- Moved GNU/Linux release builds to an Ubuntu 22.04 baseline, kept Ubuntu 24.04
+  installed-package smoke coverage, and documented source-build guidance for
+  older or unsupported Linux targets.
+- Expanded CI to build and test every advertised native package target on
+  matching GitHub-hosted runner architectures, using same-arch Alpine Docker for
+  musl targets instead of QEMU or Linux cross-compilation.
+- Hardened CI artifact handling, shell selection, npm cache configuration, and
+  manual dispatch support for the native build/test matrix.
+- Switched release publishing guidance and automation to npm Trusted Publishing
+  with GitHub Actions OIDC instead of long-lived npm publish tokens, and added
+  explicit release dry-run instructions.
+- Added an explicit one-time token-bootstrap publish path for the first release
+  of brand-new npm package names before npm Trusted Publishing can be configured.
 - Clarified that high-concurrency encode scheduling is an application-level
   policy decision; xshot offloads blocking work but does not impose a global
   concurrency limit across independent calls.
@@ -22,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Clarified macOS permission-denied behavior so the README no longer promises
   `PERMISSION_DENIED` when the upstream OS/capture error is not distinguishable.
+- Added the missing `aarch64-unknown-linux-musl` target to cargo-deny's graph
+  target list so dependency checks match the advertised NAPI target matrix.
+- Updated the transitive `bitstream-io` lockfile entry to remove the yanked
+  `core2` crate from the dependency graph.
 
 ## [0.9.0] - 2026-04-10
 

@@ -44,8 +44,10 @@
     "build:debug": "napi build --platform -p xshot -o .",
     "test": "node --test __tests__/integration.mts",
     "typecheck": "tsc --noEmit",
+    "create:npm-dirs": "napi create-npm-dirs",
     "artifacts": "napi artifacts",
-    "prepublishOnly": "napi prepublish -t npm",
+    "prepublish:napi": "napi prepublish -t npm --no-gh-release",
+    "prepublishOnly": "npm run prepublish:napi",
     "version": "napi version",
     "prepare": "husky"
   },

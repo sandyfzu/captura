@@ -25,6 +25,23 @@ already, but minimal images and containers may need them installed before the
 native addon can load or before Wayland capture can talk to the desktop portal
 services.
 
+The published GNU/Linux prebuilt packages are built on Ubuntu 22.04 for glibc
+systems and are release-smoke-tested on Ubuntu 22.04 and Ubuntu 24.04. Building
+on Ubuntu 22.04 keeps the default binary baseline older than Ubuntu 24.04, so it
+is the safer direction for forward compatibility with newer glibc distributions.
+It does not guarantee every distribution older than Ubuntu 22.04 because xshot
+also links against the native desktop capture libraries listed above.
+
+For Ubuntu 22.04 runtime installations, install:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  libxcb1 libxrandr2 libdbus-1-3 \
+  libpipewire-0.3-0 libwayland-client0 libegl1 libgbm1 \
+  xdg-desktop-portal
+```
+
 For Ubuntu 24.04 runtime installations, install:
 
 ```bash
@@ -35,8 +52,9 @@ sudo apt-get install -y \
   xdg-desktop-portal
 ```
 
-On Ubuntu releases that do not use the `t64` PipeWire runtime package name,
-install `libpipewire-0.3-0` instead of `libpipewire-0.3-0t64`.
+Ubuntu 24.04 uses the `libpipewire-0.3-0t64` runtime package name. Ubuntu 22.04
+and older Ubuntu releases that package PipeWire 0.3 without the `t64` transition
+use `libpipewire-0.3-0` instead.
 
 If you are building xshot from source or rebuilding the native addon on Ubuntu,
 install the development headers too:
@@ -48,9 +66,37 @@ sudo apt-get install -y pkg-config libclang-dev \
   libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 ```
 
-These package lists are based on xshot's Ubuntu 24.04 CI build configuration.
-`libgbm-dev`/`libgbm1` are included because xshot's Wayland capture layer
-requires GBM.
+These package lists follow xcap's Linux build requirements, with GBM included
+because xshot's Wayland capture layer requires it.
+
+#### Building for an unsupported Linux target
+
+If the prebuilt GNU or musl package cannot load on your distribution, build the
+native addon on that target system so it links against that system's libc and
+desktop capture libraries. You need Node.js 20.3.0 or newer, Rust, and the
+development headers above. The published npm package is prebuilt-only and does
+not include the Rust source, so source builds start from the repository tag that
+matches the package version you want to run:
+
+```bash
+git clone https://github.com/sandyfzu/xshot.git
+cd xshot
+git checkout v0.9.0 # replace with the xshot version you installed
+npm ci
+npm run build
+```
+
+Then, from the application that has `xshot` installed, point the generated
+loader at the locally built `.node` file:
+
+```bash
+export NAPI_RS_NATIVE_LIBRARY_PATH="/absolute/path/to/xshot.linux-x64-gnu.node"
+node -e "const xshot = require('xshot'); console.log(Object.keys(xshot))"
+```
+
+Use the `.node` file produced for your actual platform and architecture, such as
+`xshot.linux-arm64-gnu.node` on Linux ARM64 glibc or `xshot.linux-x64-musl.node`
+on Alpine x64.
 
 ## Installation
 
