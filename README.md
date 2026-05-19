@@ -38,7 +38,8 @@ For Ubuntu 24.04 runtime installations, install:
 sudo apt-get update
 sudo apt-get install -y \
   libxcb1 libxrandr2 libdbus-1-3 \
-  libpipewire-0.3-0t64 libwayland-client0 libegl1 libgbm1 \
+  libpipewire-0.3-0t64 libwayland-client0 libwayland-server0 \
+  libegl1 libgbm1 \
   xdg-desktop-portal
 ```
 
@@ -54,8 +55,8 @@ sudo apt-get install -y pkg-config libclang-dev \
   libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 ```
 
-These package lists follow captures's stack Linux build requirements, with GBM included
-because xshot's Wayland capture layer requires it.
+These package lists follow the capture stack's Linux build requirements, with
+GBM included because xshot's Wayland capture layer requires it.
 
 #### Building for an unsupported Linux target
 

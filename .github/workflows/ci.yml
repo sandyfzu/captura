@@ -377,7 +377,28 @@ jobs:
 
           sudo apt-get update
           sudo apt-get install -y libxcb1 libxrandr2 libdbus-1-3 \
-            "$pipewire_runtime" libwayland-client0 libegl1 libgbm1
+            "$pipewire_runtime" libwayland-client0 libwayland-server0 \
+            libegl1 libgbm1
+
+      - name: Verify Linux native runtime links
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          bindings=(*.node)
+          if (( ${#bindings[@]} != 1 )); then
+            printf 'Expected exactly one Linux .node binding, found %s: %s\n' "${#bindings[@]}" "${bindings[*]}" >&2
+            exit 1
+          fi
+
+          link_report="$(ldd "${bindings[0]}")"
+          printf '%s\n' "$link_report"
+          if grep -Fq 'not found' <<<"$link_report"; then
+            echo "Linux native binding has unresolved shared-library dependencies." >&2
+            exit 1
+          fi
 
       - run: npm run typecheck
       - run: npm test

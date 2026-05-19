@@ -674,7 +674,8 @@ jobs:
 
           sudo apt-get update
           sudo apt-get install -y libxcb1 libxrandr2 libdbus-1-3 \
-            "$pipewire_runtime" libwayland-client0 libegl1 libgbm1
+            "$pipewire_runtime" libwayland-client0 libwayland-server0 \
+            libegl1 libgbm1
 
       - name: Install package tarballs and smoke-test loader
         shell: bash
@@ -690,6 +691,22 @@ jobs:
           npm install --ignore-scripts \
             "../dist/${PLATFORM_PACKAGE}-${VERSION}.tgz" \
             "../dist/xshot-${VERSION}.tgz"
+
+          if [[ "${RUNNER_OS:-}" == "Linux" ]]; then
+            mapfile -t native_files < <(find node_modules -type f -name '*.node' -print | sort)
+            if (( ${#native_files[@]} != 1 )); then
+              printf 'Expected exactly one installed Linux .node binding, found %s:\n' "${#native_files[@]}" >&2
+              printf '%s\n' "${native_files[@]}" >&2
+              exit 1
+            fi
+
+            link_report="$(ldd "${native_files[0]}")"
+            printf '%s\n' "$link_report"
+            if grep -Fq 'not found' <<<"$link_report"; then
+              echo "Installed Linux native package has unresolved shared-library dependencies." >&2
+              exit 1
+            fi
+          fi
 
           node --test "${GITHUB_WORKSPACE}/__tests__/installed-package-smoke.mts"
 

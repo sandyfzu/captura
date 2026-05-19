@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Clarified macOS permission-denied behavior so the README no longer promises
   `PERMISSION_DENIED` when the upstream OS/capture error is not distinguishable.
+- Installed the Wayland server runtime package in Linux GNU CI and release
+  smoke jobs so the native binding can resolve `libwayland-server.so.0`.
 - Scoped Rust workflow caches by runner image and target to prevent cached
   build-script binaries from crossing Ubuntu glibc baselines.
 - Added the missing `aarch64-unknown-linux-musl` target to cargo-deny's graph
