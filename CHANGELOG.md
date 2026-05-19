@@ -17,9 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a dedicated release workflow that builds all native targets, generates
   NAPI-RS platform packages, validates tarballs, smoke-tests installs, and
   publishes platform packages before the root package.
-- Moved GNU/Linux release builds to an Ubuntu 22.04 baseline, kept Ubuntu 24.04
-  installed-package smoke coverage, and documented source-build guidance for
-  older or unsupported Linux targets.
+- Kept GNU/Linux release builds and installed-package smoke coverage on Ubuntu
+  24.04 because the current pipewire-rs/libspa bindings require PipeWire headers
+  newer than Ubuntu 22.04's package set, and documented source-build guidance
+  for older or unsupported Linux targets.
 - Expanded CI to build and test every advertised native package target on
   matching GitHub-hosted runner architectures, using same-arch Alpine Docker for
   musl targets instead of QEMU or Linux cross-compilation.
@@ -38,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Clarified macOS permission-denied behavior so the README no longer promises
   `PERMISSION_DENIED` when the upstream OS/capture error is not distinguishable.
+- Scoped Rust workflow caches by runner image and target to prevent cached
+  build-script binaries from crossing Ubuntu glibc baselines.
 - Added the missing `aarch64-unknown-linux-musl` target to cargo-deny's graph
   target list so dependency checks match the advertised NAPI target matrix.
 - Updated the transitive `bitstream-io` lockfile entry to remove the yanked

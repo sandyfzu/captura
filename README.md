@@ -25,22 +25,12 @@ already, but minimal images and containers may need them installed before the
 native addon can load or before Wayland capture can talk to the desktop portal
 services.
 
-The published GNU/Linux prebuilt packages are built on Ubuntu 22.04 for glibc
-systems and are release-smoke-tested on Ubuntu 22.04 and Ubuntu 24.04. Building
-on Ubuntu 22.04 keeps the default binary baseline older than Ubuntu 24.04, so it
-is the safer direction for forward compatibility with newer glibc distributions.
-It does not guarantee every distribution older than Ubuntu 22.04 because xshot
-also links against the native desktop capture libraries listed above.
-
-For Ubuntu 22.04 runtime installations, install:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  libxcb1 libxrandr2 libdbus-1-3 \
-  libpipewire-0.3-0 libwayland-client0 libegl1 libgbm1 \
-  xdg-desktop-portal
-```
+The published GNU/Linux glibc prebuilt packages are built and release-smoke-tested
+on Ubuntu 24.04. Ubuntu 24.04 is the supported prebuilt GNU/Linux baseline for
+the current capture stack because the Rust PipeWire bindings compile against
+PipeWire/libspa headers newer than Ubuntu 22.04's package set. Older glibc
+distributions may require their own build with compatible PipeWire development
+headers or an xshot version whose dependency graph supports that distribution.
 
 For Ubuntu 24.04 runtime installations, install:
 
@@ -52,12 +42,10 @@ sudo apt-get install -y \
   xdg-desktop-portal
 ```
 
-Ubuntu 24.04 uses the `libpipewire-0.3-0t64` runtime package name. Ubuntu 22.04
-and older Ubuntu releases that package PipeWire 0.3 without the `t64` transition
-use `libpipewire-0.3-0` instead.
+Ubuntu 24.04 uses the `libpipewire-0.3-0t64` runtime package name.
 
-If you are building xshot from source or rebuilding the native addon on Ubuntu,
-install the development headers too:
+If you are building xshot from source or rebuilding the native addon on Ubuntu
+24.04, install the development headers too:
 
 ```bash
 sudo apt-get update
@@ -66,17 +54,18 @@ sudo apt-get install -y pkg-config libclang-dev \
   libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 ```
 
-These package lists follow xcap's Linux build requirements, with GBM included
+These package lists follow captures's stack Linux build requirements, with GBM included
 because xshot's Wayland capture layer requires it.
 
 #### Building for an unsupported Linux target
 
 If the prebuilt GNU or musl package cannot load on your distribution, build the
 native addon on that target system so it links against that system's libc and
-desktop capture libraries. You need Node.js 20.3.0 or newer, Rust, and the
-development headers above. The published npm package is prebuilt-only and does
-not include the Rust source, so source builds start from the repository tag that
-matches the package version you want to run:
+desktop capture libraries. You need Node.js 20.3.0 or newer, Rust, and
+PipeWire/libspa development headers compatible with the current Rust capture
+dependencies. The published npm package is prebuilt-only and does not include
+the Rust source, so source builds start from the repository tag that matches the
+package version you want to run:
 
 ```bash
 git clone https://github.com/sandyfzu/xshot.git

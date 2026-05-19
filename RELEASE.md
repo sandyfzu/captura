@@ -34,15 +34,15 @@ Ensure the npm account `sandyfzu` owns all nine package names before publishing:
 | `xshot-linux-x64-musl` | Linux x64 musl (Alpine) binary |
 | `xshot-linux-arm64-musl` | Linux ARM64 musl (Alpine) binary |
 
-The GNU/Linux packages are built and smoke-tested on Ubuntu 22.04, then
-forward-smoke-tested on Ubuntu 24.04. Building on Ubuntu 22.04 keeps the default
-glibc/native-library baseline no newer than Jammy while still exercising the
-current Noble runtime package set. These packages depend on glibc and the native
+The GNU/Linux glibc packages are built and smoke-tested on Ubuntu 24.04. This is
+the current prebuilt baseline because xcap's current pipewire-rs/libspa
+dependency stack compiles against PipeWire/libspa headers newer than Ubuntu
+22.04's package set. These packages depend on glibc and the native
 X11/Wayland/PipeWire libraries used by the capture stack, so the Rust target's
-glibc floor alone is not a full older-distribution compatibility promise. Treat
-Ubuntu 22.04 as the current GNU/Linux prebuilt baseline. Older distributions
-require explicit validation or a source build on the target system.
-Alpine/musl packages are built and smoke-tested separately inside Alpine.
+glibc floor alone is not a full older-distribution compatibility promise. Older
+distributions require explicit validation, compatible PipeWire development
+headers, or a source build on the target system. Alpine/musl packages are built
+and smoke-tested separately inside Alpine.
 
 ### GitHub Environment: `npm-production`
 
@@ -474,7 +474,7 @@ Builds all eight native targets:
 
 - macOS x64 and arm64.
 - Windows x64 and arm64.
-- Linux GNU x64 and arm64 on Ubuntu 22.04.
+- Linux GNU x64 and arm64 on Ubuntu 24.04.
 - Linux musl x64 and arm64 (Alpine containers).
 
 Linux arm64 builds run on GitHub-hosted arm64 runners. Linux musl builds run
@@ -497,9 +497,8 @@ Generates and validates npm packages from the build artifacts:
 ### `smoke-native`
 
 Installs the root tarball and the matching platform tarball on native runners for
-macOS, Windows, and Linux GNU. Linux GNU tarballs are smoked on Ubuntu 22.04 and
-Ubuntu 24.04 so the release proves both the default baseline and the newer Noble
-runtime package set. Verifies:
+macOS, Windows, and Linux GNU. Linux GNU tarballs are smoked on Ubuntu 24.04,
+the current prebuilt GNU/Linux baseline. Verifies:
 
 - Package installation succeeds from tarballs.
 - `require('xshot')` loads the native binding.

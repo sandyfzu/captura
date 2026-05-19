@@ -143,6 +143,8 @@ jobs:
           components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ubuntu-24.04-verify
 
       - uses: actions/setup-node@v6
         with:
@@ -178,39 +180,47 @@ jobs:
             host: macos-15-intel
             timeout: 45
             musl: false
+            node_arch: x64
           - target: aarch64-apple-darwin
-            host: macos-latest
+            host: macos-15
             timeout: 45
             musl: false
+            node_arch: arm64
           - target: x86_64-pc-windows-msvc
-            host: windows-latest
+            host: windows-2025
             timeout: 60
             musl: false
+            node_arch: x64
           - target: aarch64-pc-windows-msvc
-            host: windows-latest
+            host: windows-11-arm
             timeout: 60
             musl: false
-          # GNU Linux packages are built on Ubuntu 22.04 to keep the default
-          # glibc/native-library baseline no newer than Jammy. They still rely
-          # on the target system's xcap desktop stack at runtime.
+            node_arch: arm64
+          # GNU Linux packages are built on Ubuntu 24.04 because the current
+          # pipewire-rs/libspa bindings require PipeWire headers newer than
+          # Ubuntu 22.04's package set.
           - target: x86_64-unknown-linux-gnu
-            host: ubuntu-22.04
+            host: ubuntu-24.04
             timeout: 60
             musl: false
+            node_arch: x64
           - target: aarch64-unknown-linux-gnu
-            host: ubuntu-22.04-arm
+            host: ubuntu-24.04-arm
             timeout: 60
             musl: false
+            node_arch: arm64
           - target: x86_64-unknown-linux-musl
             host: ubuntu-24.04
             timeout: 90
             musl: true
             docker_platform: linux/amd64
+            node_arch: x64
           - target: aarch64-unknown-linux-musl
             host: ubuntu-24.04-arm
             timeout: 120
             musl: true
             docker_platform: linux/arm64
+            node_arch: arm64
     steps:
       - uses: actions/checkout@v6
 
@@ -221,6 +231,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         if: ${{ !matrix.musl }}
+        with:
+          key: ${{ matrix.host }}-${{ matrix.target }}-build
 
       - uses: actions/setup-node@v6
         if: ${{ !matrix.musl }}
@@ -231,6 +243,13 @@ jobs:
       - name: Install npm dependencies
         if: ${{ !matrix.musl }}
         run: npm ci
+
+      - name: Verify native Node.js architecture
+        if: ${{ !matrix.musl }}
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+        run: |
+          node -e 'const actual = process.arch; const expected = process.env.EXPECTED_NODE_ARCH; if (actual !== expected) { throw new Error("Expected native Node.js " + expected + ", got " + actual); }'
 
       - name: Install Linux system dependencies
         if: ${{ !matrix.musl && runner.os == 'Linux' }}
@@ -247,14 +266,25 @@ jobs:
       - name: Build native addon in Alpine musl
         if: ${{ matrix.musl }}
         shell: bash
+        env:
+          EXPECTED_NODE_ARCH: ${{ matrix.node_arch }}
+          NAPI_TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
 
           # shellcheck disable=SC2016
           docker run --rm --platform ${{ matrix.docker_platform }} \
+            -e EXPECTED_NODE_ARCH \
+            -e NAPI_TARGET \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             node:${{ env.NODE_VERSION }}-alpine sh -ec '
+              actual_arch="$(node -p "process.arch")"
+              if [ "$actual_arch" != "$EXPECTED_NODE_ARCH" ]; then
+                echo "Expected native Node.js $EXPECTED_NODE_ARCH, got $actual_arch" >&2
+                exit 1
+              fi
+
               apk add --no-cache \
                 curl build-base clang-dev pkgconf \
                 libxcb-dev libxrandr-dev dbus-dev \
@@ -272,7 +302,7 @@ jobs:
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
 
               npm ci
-              npx napi build --platform --release -p xshot -o . --target ${{ matrix.target }} -- --locked
+              npx napi build --platform --release -p xshot -o . --target "$NAPI_TARGET" -- --locked
             '
 
           sudo chown -R "$(id -u):$(id -g)" .
@@ -601,24 +631,16 @@ jobs:
             timeout: 20
           - package: xshot-darwin-arm64
             label: xshot-darwin-arm64
-            host: macos-latest
+            host: macos-15
             timeout: 20
           - package: xshot-win32-x64-msvc
             label: xshot-win32-x64-msvc
-            host: windows-latest
+            host: windows-2025
             timeout: 20
           - package: xshot-win32-arm64-msvc
             label: xshot-win32-arm64-msvc
             host: windows-11-arm
             timeout: 30
-          - package: xshot-linux-x64-gnu
-            label: xshot-linux-x64-gnu on Ubuntu 22.04
-            host: ubuntu-22.04
-            timeout: 20
-          - package: xshot-linux-arm64-gnu
-            label: xshot-linux-arm64-gnu on Ubuntu 22.04
-            host: ubuntu-22.04-arm
-            timeout: 20
           - package: xshot-linux-x64-gnu
             label: xshot-linux-x64-gnu on Ubuntu 24.04
             host: ubuntu-24.04
@@ -642,6 +664,7 @@ jobs:
 
       - name: Install Linux runtime dependencies
         if: runner.os == 'Linux'
+        shell: bash
         run: |
           . /etc/os-release
           pipewire_runtime=libpipewire-0.3-0

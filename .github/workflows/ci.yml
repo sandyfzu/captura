@@ -21,8 +21,9 @@ env:
 # Linux system packages required by xcap
 # ---------------------------------------------------------------------------
 # xcap depends on X11/Wayland/PipeWire/EGL system libraries.
-# GNU targets install them via apt on native Ubuntu runners; release GNU
-# binaries are built on Ubuntu 22.04 as the default compatibility baseline.
+# GNU targets install them via apt on native Ubuntu runners; GNU binaries are
+# built on Ubuntu 24.04 because the current pipewire-rs/libspa bindings require
+# PipeWire headers newer than Ubuntu 22.04's package set.
 # Musl targets use Alpine apk inside Docker on a matching native host.
 #
 # apt (Debian/Ubuntu):
@@ -45,10 +46,10 @@ jobs:
       matrix:
         settings:
           - label: Linux x64 GNU
-            host: ubuntu-22.04
+            host: ubuntu-24.04
             node_arch: x64
           - label: Linux ARM64 GNU
-            host: ubuntu-22.04-arm
+            host: ubuntu-24.04-arm
             node_arch: arm64
           - label: macOS Intel
             host: macos-15-intel
@@ -68,6 +69,8 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.settings.host }}-${{ matrix.settings.node_arch }}-check
 
       - uses: actions/setup-node@v6
         with:
@@ -143,14 +146,14 @@ jobs:
 
           # ── Linux GNU ───────────────────────────────────────────────────
           - target: x86_64-unknown-linux-gnu
-            label: x86_64-unknown-linux-gnu on Ubuntu 22.04
-            host: ubuntu-22.04
+            label: x86_64-unknown-linux-gnu on Ubuntu 24.04
+            host: ubuntu-24.04
             timeout: 120
             docker: false
             node_arch: x64
           - target: aarch64-unknown-linux-gnu
-            label: aarch64-unknown-linux-gnu on Ubuntu 22.04 ARM64
-            host: ubuntu-22.04-arm
+            label: aarch64-unknown-linux-gnu on Ubuntu 24.04 ARM64
+            host: ubuntu-24.04-arm
             timeout: 120
             docker: false
             node_arch: arm64
@@ -179,6 +182,8 @@ jobs:
           targets: ${{ matrix.settings.target }}
       - uses: Swatinem/rust-cache@v2
         if: ${{ !matrix.settings.docker }}
+        with:
+          key: ${{ matrix.settings.host }}-${{ matrix.settings.target }}-build
 
       - uses: actions/setup-node@v6
         if: ${{ !matrix.settings.docker }}
@@ -298,7 +303,7 @@ jobs:
 
   # ── JS integration tests ─────────────────────────────────────────────────
   # Run on every GNU/macOS/Windows platform with a native runner. Linux GNU is
-  # tested on the Ubuntu 22.04 build baseline and Ubuntu 24.04 forward runtime.
+  # tested on the Ubuntu 24.04 build and runtime baseline.
   # Display-dependent tests are automatically skipped in headless environments.
   test-js:
     name: Test JS (${{ matrix.settings.label }})
@@ -324,14 +329,6 @@ jobs:
           - target: aarch64-pc-windows-msvc
             label: aarch64-pc-windows-msvc
             host: windows-11-arm
-            node_arch: arm64
-          - target: x86_64-unknown-linux-gnu
-            label: x86_64-unknown-linux-gnu on Ubuntu 22.04
-            host: ubuntu-22.04
-            node_arch: x64
-          - target: aarch64-unknown-linux-gnu
-            label: aarch64-unknown-linux-gnu on Ubuntu 22.04 ARM64
-            host: ubuntu-22.04-arm
             node_arch: arm64
           - target: x86_64-unknown-linux-gnu
             label: x86_64-unknown-linux-gnu on Ubuntu 24.04
