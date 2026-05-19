@@ -58,7 +58,7 @@ jobs:
             host: macos-15
             node_arch: arm64
           - label: Windows x64
-            host: windows-2025
+            host: windows-2025-vs2026
             node_arch: x64
           - label: Windows ARM64
             host: windows-11-arm
@@ -133,7 +133,7 @@ jobs:
           # ── Windows ─────────────────────────────────────────────────────
           - target: x86_64-pc-windows-msvc
             label: x86_64-pc-windows-msvc
-            host: windows-2025
+            host: windows-2025-vs2026
             timeout: 120
             docker: false
             node_arch: x64
@@ -324,7 +324,7 @@ jobs:
             node_arch: x64
           - target: x86_64-pc-windows-msvc
             label: x86_64-pc-windows-msvc
-            host: windows-2025
+            host: windows-2025-vs2026
             node_arch: x64
           - target: aarch64-pc-windows-msvc
             label: aarch64-pc-windows-msvc

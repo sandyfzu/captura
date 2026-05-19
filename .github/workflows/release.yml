@@ -187,7 +187,7 @@ jobs:
             musl: false
             node_arch: arm64
           - target: x86_64-pc-windows-msvc
-            host: windows-2025
+            host: windows-2025-vs2026
             timeout: 60
             musl: false
             node_arch: x64
@@ -635,7 +635,7 @@ jobs:
             timeout: 20
           - package: xshot-win32-x64-msvc
             label: xshot-win32-x64-msvc
-            host: windows-2025
+            host: windows-2025-vs2026
             timeout: 20
           - package: xshot-win32-arm64-msvc
             label: xshot-win32-arm64-msvc
