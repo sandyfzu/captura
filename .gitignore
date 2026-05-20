@@ -10,9 +10,10 @@ node_modules/
 # napi-rs compiled binaries
 *.node
 
-# napi-rs generated files (produced by `npm run build`)
-# The root-level files are the canonical outputs; crate-level copies are
-# stale artifacts from older build configurations and must not be committed.
+# napi-rs generated files (produced by `npm run build` / release builds)
+# Root-level files are the canonical package entrypoints and are regenerated
+# before TypeScript typechecking and packaging. Crate-level copies are stale
+# artifacts from older build configurations and must not be committed.
 /index.js
 /index.d.ts
 crates/*/index.js

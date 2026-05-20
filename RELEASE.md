@@ -285,6 +285,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+npx napi build --platform --release -p xshot -o . -- --locked
 npm run typecheck
 npm test
 npm audit --audit-level=moderate

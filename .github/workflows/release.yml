@@ -163,6 +163,16 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+      - name: Generate NAPI entrypoints for TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx napi build --platform --release -p xshot -o . --target x86_64-unknown-linux-gnu -- --locked
+          test -f index.js
+          test -f index.d.ts
+
       - run: npm run typecheck
       - run: npm audit --audit-level=moderate
       - uses: EmbarkStudios/cargo-deny-action@v2

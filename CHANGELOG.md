@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PERMISSION_DENIED` when the upstream OS/capture error is not distinguishable.
 - Installed the Wayland server runtime package in Linux GNU CI and release
   smoke jobs so the native binding can resolve `libwayland-server.so.0`.
+- Generated NAPI-RS package entrypoints in release source verification before
+  TypeScript typechecking so clean checkouts can resolve the public API module.
 - Pinned Windows x64 CI and release jobs to GitHub's `windows-2025-vs2026`
   runner image ahead of the `windows-2025` redirect deadline.
 - Scoped Rust workflow caches by runner image and target to prevent cached
