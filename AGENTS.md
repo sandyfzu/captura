@@ -316,6 +316,16 @@ interface Size {
   - Validate error propagation through the public `[CODE]` message-prefix
     contract for async exports.
   - Validate returned data structures match the TypeScript interfaces.
+- Keep `__tests__/integration.mts` and `__tests__/smoke-report.mts`
+  aligned with the public JavaScript API. Whenever a new exported function,
+  parameter, return field, image format, Base64 variant, error category, or
+  behavior-changing default is added, update both the automated integration
+  tests and the smoke report runner in the same change.
+- The smoke report runner is observation-oriented rather than
+  assertion-oriented. It must exercise every public function and supported
+  variant, save monitor/capture/error/timing artifacts under the ignored
+  `xshot-smoke-reports/` directory, and generate a self-contained HTML report
+  that relates monitor metadata to the screenshots produced by each API.
 
 ### Cross-Platform Validation
 

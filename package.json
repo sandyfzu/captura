@@ -43,6 +43,7 @@
     "build": "napi build --platform --release -p xshot -o .",
     "build:debug": "napi build --platform -p xshot -o .",
     "test": "node --test __tests__/integration.mts",
+    "test:smoke-report": "npm run build && node __tests__/smoke-report.mts",
     "typecheck": "tsc --noEmit",
     "create:npm-dirs": "napi create-npm-dirs",
     "artifacts": "napi artifacts",
