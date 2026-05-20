@@ -486,7 +486,8 @@ inside Alpine containers to ensure musl toolchain coverage.
 Generates and validates npm packages from the build artifacts:
 
 1. Downloads all native build artifacts.
-2. Runs `npm run create:npm-dirs`, `npm run artifacts`, `npm run prepublish:napi`.
+2. Runs `npm run create:npm-dirs`, `npm run artifacts`, `npm run prepublish:napi`
+   to finalize NAPI package metadata without publishing platform packages.
 3. Validates `optionalDependencies`, package names, versions, and `.node` file
    placement.
 4. Verifies the root tarball dry-run contents.
