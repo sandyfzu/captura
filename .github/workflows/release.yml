@@ -173,6 +173,15 @@ jobs:
           test -f index.js
           test -f index.d.ts
 
+      - uses: actions/upload-artifact@v7
+        with:
+          name: napi-root-entrypoints
+          path: |
+            index.js
+            index.d.ts
+          if-no-files-found: error
+          retention-days: 7
+
       - run: npm run typecheck
       - run: npm audit --audit-level=moderate
       - uses: EmbarkStudios/cargo-deny-action@v2
@@ -342,7 +351,7 @@ jobs:
 
   package:
     name: Generate and verify npm packages
-    needs: [prepare, build]
+    needs: [prepare, verify, build]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
@@ -361,6 +370,23 @@ jobs:
         with:
           pattern: bindings-*
           path: artifacts
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: napi-root-entrypoints
+          path: .
+
+      - name: Verify generated root entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for file in index.js index.d.ts; do
+            if [[ ! -s "$file" ]]; then
+              echo "Missing generated NAPI root entrypoint: $file" >&2
+              exit 1
+            fi
+          done
 
       - name: Generate NAPI platform package directories
         run: npm run create:npm-dirs

@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   smoke jobs so the native binding can resolve `libwayland-server.so.0`.
 - Generated NAPI-RS package entrypoints in release source verification before
   TypeScript typechecking so clean checkouts can resolve the public API module.
+- Passed the generated root package entrypoints into release packaging so clean
+  release jobs pack `index.js` and `index.d.ts` instead of publishing an
+  unusable root tarball.
 - Skipped NAPI-RS optional package publishing during release package metadata
   finalization so unauthenticated packaging jobs do not call `npm publish`.
 - Pinned Windows x64 CI and release jobs to GitHub's `windows-2025-vs2026`

@@ -485,16 +485,18 @@ inside Alpine containers to ensure musl toolchain coverage.
 
 Generates and validates npm packages from the build artifacts:
 
-1. Downloads all native build artifacts.
-2. Runs `npm run create:npm-dirs`, `npm run artifacts`, `npm run prepublish:napi`
+1. Downloads all native build artifacts and the generated root `index.js` /
+   `index.d.ts` entrypoints from the source verification job.
+2. Verifies the generated root entrypoints exist before packing.
+3. Runs `npm run create:npm-dirs`, `npm run artifacts`, `npm run prepublish:napi`
    to finalize NAPI package metadata without publishing platform packages.
-3. Validates `optionalDependencies`, package names, versions, and `.node` file
+4. Validates `optionalDependencies`, package names, versions, and `.node` file
    placement.
-4. Verifies the root tarball dry-run contents.
-5. Packs all nine tarballs.
-6. Runs `npm publish --dry-run` for all tarballs (platform packages first, root
+5. Verifies the root tarball dry-run contents.
+6. Packs all nine tarballs.
+7. Runs `npm publish --dry-run` for all tarballs (platform packages first, root
    last) against the npmjs registry.
-7. Uploads the tarballs as the `npm-release-tarballs` artifact.
+8. Uploads the tarballs as the `npm-release-tarballs` artifact.
 
 ### `smoke-native`
 
