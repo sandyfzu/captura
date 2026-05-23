@@ -1,4 +1,4 @@
-//! Conversion from [`XshotError`] to [`napi::Error`].
+//! Conversion from [`CapturaError`] to [`napi::Error`].
 //!
 //! Every domain error is converted into a JavaScript `Error` whose `message`
 //! carries a structured `[CODE] description` prefix. The bracketed code
@@ -20,14 +20,14 @@
 //! supported way to set a custom `.code` on rejected promises. Embedding
 //! the domain code in the message is the standard workaround.
 
+use captura_domain::CapturaError;
 use napi::Error;
-use xshot_domain::XshotError;
 
-/// Converts a domain [`XshotError`] into a [`napi::Error`].
+/// Converts a domain [`CapturaError`] into a [`napi::Error`].
 ///
 /// The resulting JavaScript `Error` has a `message` of the form
 /// `"[ERROR_CODE] Human-readable description"`.
-pub fn to_napi(e: XshotError) -> Error {
+pub fn to_napi(e: CapturaError) -> Error {
     let code = e.code();
     let description = e.to_string();
     Error::from_reason(format!("[{code}] {description}"))
@@ -36,61 +36,61 @@ pub fn to_napi(e: XshotError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xshot_domain::{XshotError, XshotErrorCode};
+    use captura_domain::{CapturaError, CapturaErrorCode};
 
-    /// Every [`XshotError`] variant must convert to a [`napi::Error`] whose
+    /// Every [`CapturaError`] variant must convert to a [`napi::Error`] whose
     /// `reason` contains the `[CODE]` prefix and the human-readable message.
     #[test]
     fn to_napi_embeds_code_in_reason() {
-        let cases: Vec<(XshotError, XshotErrorCode, &str)> = vec![
+        let cases: Vec<(CapturaError, CapturaErrorCode, &str)> = vec![
             (
-                XshotError::initialization("init failed"),
-                XshotErrorCode::InitializationError,
+                CapturaError::initialization("init failed"),
+                CapturaErrorCode::InitializationError,
                 "init failed",
             ),
             (
-                XshotError::monitor_not_found(42),
-                XshotErrorCode::MonitorNotFound,
+                CapturaError::monitor_not_found(42),
+                CapturaErrorCode::MonitorNotFound,
                 "no monitor with id 42",
             ),
             (
-                XshotError::capture_failed("timeout"),
-                XshotErrorCode::CaptureFailed,
+                CapturaError::capture_failed("timeout"),
+                CapturaErrorCode::CaptureFailed,
                 "timeout",
             ),
             (
-                XshotError::permission_denied("screen recording"),
-                XshotErrorCode::PermissionDenied,
+                CapturaError::permission_denied("screen recording"),
+                CapturaErrorCode::PermissionDenied,
                 "screen recording",
             ),
             (
-                XshotError::platform_not_supported("Wayland unstable"),
-                XshotErrorCode::PlatformNotSupported,
+                CapturaError::platform_not_supported("Wayland unstable"),
+                CapturaErrorCode::PlatformNotSupported,
                 "Wayland unstable",
             ),
             (
-                XshotError::encoding_error("PNG failed"),
-                XshotErrorCode::EncodingError,
+                CapturaError::encoding_error("PNG failed"),
+                CapturaErrorCode::EncodingError,
                 "PNG failed",
             ),
             (
-                XshotError::invalid_argument("bad format"),
-                XshotErrorCode::InvalidArgument,
+                CapturaError::invalid_argument("bad format"),
+                CapturaErrorCode::InvalidArgument,
                 "bad format",
             ),
             (
-                XshotError::internal("unexpected"),
-                XshotErrorCode::InternalError,
+                CapturaError::internal("unexpected"),
+                CapturaErrorCode::InternalError,
                 "unexpected",
             ),
             (
-                XshotError::timeout("5s elapsed"),
-                XshotErrorCode::TimeoutError,
+                CapturaError::timeout("5s elapsed"),
+                CapturaErrorCode::TimeoutError,
                 "5s elapsed",
             ),
             (
-                XshotError::resource_unavailable("monitor gone"),
-                XshotErrorCode::ResourceUnavailable,
+                CapturaError::resource_unavailable("monitor gone"),
+                CapturaErrorCode::ResourceUnavailable,
                 "monitor gone",
             ),
         ];
@@ -118,7 +118,7 @@ mod tests {
     /// The `[CODE]` prefix must appear exactly once — no double-wrapping.
     #[test]
     fn to_napi_no_double_code_prefix() {
-        let err = XshotError::monitor_not_found(1);
+        let err = CapturaError::monitor_not_found(1);
         let napi_err = to_napi(err);
         let count = napi_err.reason.matches("[MONITOR_NOT_FOUND]").count();
         assert_eq!(count, 1, "code prefix should appear exactly once");

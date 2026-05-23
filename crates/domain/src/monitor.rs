@@ -115,7 +115,7 @@ pub struct Size {
 /// The encoding format of a captured screenshot.
 ///
 /// Indicates how `Screenshot::data` is encoded. This is a closed set of
-/// formats that xshot supports.
+/// formats that captura supports.
 ///
 /// Encoded formats (PNG, JPEG, WebP, AVIF) use default encoder settings.
 /// For fine-grained control over encoding parameters (e.g. JPEG quality,
@@ -187,7 +187,7 @@ impl ImageFormat {
     /// # Examples
     ///
     /// ```
-    /// use xshot_domain::ImageFormat;
+    /// use captura_domain::ImageFormat;
     /// assert_eq!(ImageFormat::Png.mime_type(), "image/png");
     /// ```
     pub const fn mime_type(self) -> &'static str {
@@ -205,7 +205,7 @@ impl ImageFormat {
     /// # Examples
     ///
     /// ```
-    /// use xshot_domain::ImageFormat;
+    /// use captura_domain::ImageFormat;
     /// assert_eq!(ImageFormat::Png.extension(), "png");
     /// ```
     pub const fn extension(self) -> &'static str {
@@ -232,7 +232,7 @@ impl std::fmt::Display for ImageFormat {
 }
 
 impl std::str::FromStr for ImageFormat {
-    type Err = crate::XshotError;
+    type Err = crate::CapturaError;
 
     /// Parses an image format from a string, **case-insensitively**.
     ///
@@ -243,13 +243,13 @@ impl std::str::FromStr for ImageFormat {
     ///
     /// # Errors
     ///
-    /// Returns [`XshotError::InvalidArgument`](crate::XshotError::InvalidArgument)
+    /// Returns [`CapturaError::InvalidArgument`](crate::CapturaError::InvalidArgument)
     /// if the string does not match any supported format.
     ///
     /// # Examples
     ///
     /// ```
-    /// use xshot_domain::ImageFormat;
+    /// use captura_domain::ImageFormat;
     ///
     /// assert_eq!("raw".parse::<ImageFormat>().unwrap(), ImageFormat::Raw);
     /// assert_eq!("png".parse::<ImageFormat>().unwrap(), ImageFormat::Png);
@@ -271,7 +271,7 @@ impl std::str::FromStr for ImageFormat {
         } else if s.eq_ignore_ascii_case("avif") {
             Ok(Self::Avif)
         } else {
-            Err(crate::XshotError::invalid_argument(format!(
+            Err(crate::CapturaError::invalid_argument(format!(
                 "unsupported image format {s:?} — expected one of: raw, png, jpeg, jpg, webp, avif (case-insensitive)"
             )))
         }
@@ -304,7 +304,7 @@ pub struct Screenshot {
 /// screenshot.
 ///
 /// Returned by `capture_monitor` and `capture_all_monitors` in the
-/// `xshot_core` crate.
+/// `captura_core` crate.
 #[derive(Debug, Clone)]
 pub struct CaptureResult {
     /// Metadata of the monitor this screenshot was captured from.
@@ -345,7 +345,7 @@ pub struct Base64Screenshot {
 /// with a Base64-encoded screenshot.
 ///
 /// Returned by `capture_monitor_base64` and `capture_all_monitors_base64`
-/// in the `xshot_core` crate.
+/// in the `captura_core` crate.
 #[derive(Debug, Clone)]
 pub struct Base64CaptureResult {
     /// Metadata of the monitor this screenshot was captured from.
@@ -432,7 +432,7 @@ mod tests {
             let err = input.parse::<ImageFormat>().unwrap_err();
             assert_eq!(
                 err.code(),
-                crate::XshotErrorCode::InvalidArgument,
+                crate::CapturaErrorCode::InvalidArgument,
                 "failed for {input:?}"
             );
         }

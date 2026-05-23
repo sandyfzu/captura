@@ -1,11 +1,11 @@
 [package]
-name = "xshot-domain"
+name = "captura-domain"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
-description = "Domain models for xshot — plain Rust types with no NAPI or platform dependencies"
+description = "Domain models for captura — plain Rust types with no NAPI or platform dependencies"
 
 [dependencies]
 thiserror = { workspace = true }

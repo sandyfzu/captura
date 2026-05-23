@@ -1,8 +1,8 @@
 /**
- * Smoke report for xshot.
+ * Smoke report for captura.
  *
  * This script intentionally records observations instead of asserting pass/fail
- * conditions. It exercises every public JavaScript API exported by xshot,
+ * conditions. It exercises every public JavaScript API exported by captura,
  * captures every supported image format variant, and writes a timestamped report
  * that can be inspected in a browser for correctness.
  *
@@ -13,7 +13,7 @@
  * The npm script performs a production NAPI build before this file runs so the
  * report reflects release-like behavior. Generated screenshots can contain
  * private desktop contents, so output is written under the ignored
- * xshot-smoke-reports/ directory.
+ * captura-smoke-reports/ directory.
  */
 
 import { Buffer } from 'node:buffer'
@@ -212,7 +212,7 @@ interface FinalReport {
   }
 }
 
-const REPORTS_ROOT_NAME = 'xshot-smoke-reports'
+const REPORTS_ROOT_NAME = 'captura-smoke-reports'
 const ARTIFACTS_DIR_NAME = 'artifacts'
 const MISSING_MONITOR_ID = 0x7fffffff
 const LOG_LABEL_WIDTH = 18
@@ -1132,7 +1132,7 @@ function renderHtmlReport(report: FinalReport): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>xshot Smoke Report</title>
+  <title>captura Smoke Report</title>
   <style>
 ${renderReportCss()}
   </style>
@@ -1140,8 +1140,8 @@ ${renderReportCss()}
 <body>
   <header class="hero">
     <div>
-      <p class="eyebrow">xshot smoke report</p>
-      <h1>${escapeHtml(report.package.name ?? 'xshot')} ${escapeHtml(report.package.version ?? 'unknown version')}</h1>
+      <p class="eyebrow">captura smoke report</p>
+      <h1>${escapeHtml(report.package.name ?? 'captura')} ${escapeHtml(report.package.version ?? 'unknown version')}</h1>
       <p class="hero-subtitle">Generated ${escapeHtml(formatDateTime(report.generatedAtIso))} in ${escapeHtml(formatMs(report.durationMs))}</p>
     </div>
     <div class="hero-panel">
@@ -1695,7 +1695,7 @@ function monitorPhysicalSizeMatches(monitor: Monitor, size: Size): boolean | nul
 }
 
 /**
- * Maps xshot image format names to file extensions.
+ * Maps captura image format names to file extensions.
  */
 function extensionForFormat(format: string): string {
   switch (format) {
@@ -1715,7 +1715,7 @@ function extensionForFormat(format: string): string {
 }
 
 /**
- * Maps xshot image format names to MIME types for the HTML report.
+ * Maps captura image format names to MIME types for the HTML report.
  */
 function mimeTypeForFormat(format: string): string {
   switch (format) {
@@ -2012,7 +2012,7 @@ async function writeFinalOutputs(context: ReportContext, monitors: Monitor[]): P
  * failures, such as being unable to create files, set a non-zero exit code.
  */
 async function main(): Promise<void> {
-  console.log('xshot smoke report')
+  console.log('captura smoke report')
   const context = await createReportContext()
   const monitors = await runApiCoverage(context)
   const finalReport = await writeFinalOutputs(context, monitors)
@@ -2026,7 +2026,7 @@ async function main(): Promise<void> {
 }
 
 await main().catch((error: unknown) => {
-  console.error('Failed to generate xshot smoke report.')
+  console.error('Failed to generate captura smoke report.')
   console.error(serializeError(error))
   process.exitCode = 1
 })

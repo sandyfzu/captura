@@ -1,8 +1,8 @@
-# xshot
+# captura
 
-[![CI](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml/badge.svg)](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/xshot.svg)](https://www.npmjs.com/package/xshot)
-[![Node.js version](https://img.shields.io/node/v/xshot.svg)](https://www.npmjs.com/package/xshot)
+[![CI](https://github.com/sandyfzu/captura/actions/workflows/ci.yml/badge.svg)](https://github.com/sandyfzu/captura/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/captura.svg)](https://www.npmjs.com/package/captura)
+[![Node.js version](https://img.shields.io/node/v/captura.svg)](https://www.npmjs.com/package/captura)
 [![TypeScript types](https://img.shields.io/badge/types-included-blue.svg)](index.d.ts)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -25,16 +25,16 @@ npm binaries, and a fully typed async TypeScript API.
 
 ## Supported Platforms
 
-`xshot` requires **Node.js >= 20.3.0** because it targets N-API 9.
+`captura` requires **Node.js >= 20.3.0** because it targets N-API 9.
 
 | Platform | Architectures | Native packages | Notes |
 | --- | --- | --- | --- |
-| macOS | x64, arm64 | `xshot-darwin-x64`, `xshot-darwin-arm64` | Screen Recording permission is required. |
-| Windows | x64, arm64 | `xshot-win32-x64-msvc`, `xshot-win32-arm64-msvc` | No special OS permission is normally required. |
-| Linux glibc | x64, arm64 | `xshot-linux-x64-gnu`, `xshot-linux-arm64-gnu` | Built and release-smoke-tested on Ubuntu 24.04. |
-| Linux musl | x64, arm64 | `xshot-linux-x64-musl`, `xshot-linux-arm64-musl` | Built and smoke-tested on Alpine/musl. |
+| macOS | x64, arm64 | `captura-darwin-x64`, `captura-darwin-arm64` | Screen Recording permission is required. |
+| Windows | x64, arm64 | `captura-win32-x64-msvc`, `captura-win32-arm64-msvc` | No special OS permission is normally required. |
+| Linux glibc | x64, arm64 | `captura-linux-x64-gnu`, `captura-linux-arm64-gnu` | Built and release-smoke-tested on Ubuntu 24.04. |
+| Linux musl | x64, arm64 | `captura-linux-x64-musl`, `captura-linux-arm64-musl` | Built and smoke-tested on Alpine/musl. |
 
-The root `xshot` package loads the matching native package for the current
+The root `captura` package loads the matching native package for the current
 platform. Keep optional dependencies enabled in your package manager; installing
 with `--omit=optional`, `--no-optional`, or an equivalent setting prevents the
 native binding from being installed.
@@ -42,26 +42,26 @@ native binding from being installed.
 ## Installation
 
 ```bash
-npm install xshot
+npm install captura
 ```
 
 Use it from ESM/TypeScript:
 
 ```ts
-import { getMonitors, captureMonitor } from 'xshot'
+import { getMonitors, captureMonitor } from 'captura'
 ```
 
 Or from CommonJS:
 
 ```js
-const { getMonitors, captureMonitor } = require('xshot')
+const { getMonitors, captureMonitor } = require('captura')
 ```
 
 ## Quick Start
 
 ```ts
 import { writeFile } from 'node:fs/promises'
-import { getMonitors, captureMonitor } from 'xshot'
+import { getMonitors, captureMonitor } from 'captura'
 
 const monitors = await getMonitors()
 const monitor = monitors.find((m) => m.isPrimary) ?? monitors[0]
@@ -277,7 +277,7 @@ above or to the left of the primary display.
 
 ## Error Handling
 
-All failures are surfaced as JavaScript `Error` objects. The stable xshot domain
+All failures are surfaced as JavaScript `Error` objects. The stable captura domain
 code is embedded at the start of `err.message` as a `[CODE]` prefix:
 
 ```ts
@@ -290,9 +290,9 @@ try {
 }
 ```
 
-Do not rely on `err.code` for xshot domain matching in the current async API.
+Do not rely on `err.code` for captura domain matching in the current async API.
 With napi-rs v3 promise rejections, `err.code` is reserved for the N-API status
-code; xshot keeps the domain code in the message prefix.
+code; captura keeps the domain code in the message prefix.
 
 | Error code | Description |
 | --- | --- |
@@ -309,7 +309,7 @@ code; xshot keeps the domain code in the message prefix.
 
 ## Performance Notes
 
-Capture and encoding work is offloaded from the Node.js main thread. xshot does
+Capture and encoding work is offloaded from the Node.js main thread. captura does
 not impose a global concurrency limit across independent capture calls;
 applications that start many high-resolution encoded captures at the same time
 should decide their own queueing and backpressure policy based on workload,
@@ -326,7 +326,7 @@ image files.
 ## Platform Notes
 
 - **macOS** - Screen Recording permission is required. If the OS or capture
-  layer reports a distinguishable permission denial, xshot surfaces
+  layer reports a distinguishable permission denial, captura surfaces
   `[PERMISSION_DENIED]`; otherwise the failed capture is reported as
   `[CAPTURE_FAILED]` with platform error text in the message.
 - **Linux** - X11 and Wayland are supported, subject to the compositor and
@@ -338,7 +338,7 @@ image files.
 
 ## Linux Native Dependencies
 
-xshot uses native X11, Wayland, PipeWire, D-Bus, EGL, and GBM libraries on
+captura uses native X11, Wayland, PipeWire, D-Bus, EGL, and GBM libraries on
 Linux. Desktop Ubuntu installations usually include many runtime libraries
 already, but minimal images and containers often need additional packages.
 
@@ -347,7 +347,7 @@ tested on Ubuntu 24.04. Ubuntu 24.04 is the supported prebuilt GNU/Linux
 baseline for the current capture stack because the Rust PipeWire bindings
 compile against PipeWire/libspa headers newer than Ubuntu 22.04's package set.
 Older glibc distributions may require their own build with compatible PipeWire
-development headers or an xshot version whose dependency graph supports that
+development headers or an captura version whose dependency graph supports that
 distribution.
 
 For Ubuntu 24.04 runtime installations:
@@ -363,7 +363,7 @@ sudo apt-get install -y \
 
 Ubuntu 24.04 uses the `libpipewire-0.3-0t64` runtime package name.
 
-If you build xshot from source or rebuild the native addon on Ubuntu 24.04,
+If you build captura from source or rebuild the native addon on Ubuntu 24.04,
 install development headers too:
 
 ```bash
@@ -386,24 +386,24 @@ source builds start from the repository tag that matches the package version you
 want to run:
 
 ```bash
-git clone https://github.com/sandyfzu/xshot.git
-cd xshot
-git checkout v0.9.0 # replace with the xshot version you installed
+git clone https://github.com/sandyfzu/captura.git
+cd captura
+git checkout v0.9.0 # replace with the captura version you installed
 npm ci
 npm run build
 ```
 
-Then, from the application that has `xshot` installed, point the generated
+Then, from the application that has `captura` installed, point the generated
 loader at the locally built `.node` file:
 
 ```bash
-export NAPI_RS_NATIVE_LIBRARY_PATH="/absolute/path/to/xshot.linux-x64-gnu.node"
-node -e "const xshot = require('xshot'); console.log(Object.keys(xshot))"
+export NAPI_RS_NATIVE_LIBRARY_PATH="/absolute/path/to/captura.linux-x64-gnu.node"
+node -e "const captura = require('captura'); console.log(Object.keys(captura))"
 ```
 
 Use the `.node` file produced for your actual platform and architecture, such
-as `xshot.linux-arm64-gnu.node` on Linux ARM64 glibc or
-`xshot.linux-x64-musl.node` on Alpine x64.
+as `captura.linux-arm64-gnu.node` on Linux ARM64 glibc or
+`captura.linux-x64-musl.node` on Alpine x64.
 
 ## Development
 

@@ -27,6 +27,7 @@
 
 use base64::Engine as _;
 use base64::prelude::BASE64_STANDARD;
+use captura_domain::{CapturaError, ImageFormat};
 use image::ImageEncoder;
 use image::codecs::avif::AvifEncoder;
 use image::codecs::jpeg::JpegEncoder;
@@ -34,7 +35,6 @@ use image::codecs::png::PngEncoder;
 use image::codecs::webp::WebPEncoder;
 use log::debug;
 use std::io::Cursor;
-use xshot_domain::{ImageFormat, XshotError};
 
 /// Encodes raw RGBA pixel data into the specified image format.
 ///
@@ -47,10 +47,10 @@ use xshot_domain::{ImageFormat, XshotError};
 ///
 /// # Errors
 ///
-/// Returns [`XshotError::InvalidArgument`] if:
+/// Returns [`CapturaError::InvalidArgument`] if:
 /// - Either `width` or `height` is zero.
 ///
-/// Returns [`XshotError::EncodingError`] if:
+/// Returns [`CapturaError::EncodingError`] if:
 /// - The dimensions overflow when computing the expected buffer length.
 /// - The buffer length does not match `width × height × 4`.
 /// - The encoder fails for the chosen format.
@@ -65,9 +65,9 @@ pub fn encode_rgba(
     width: u32,
     height: u32,
     format: ImageFormat,
-) -> Result<Vec<u8>, XshotError> {
+) -> Result<Vec<u8>, CapturaError> {
     if width == 0 || height == 0 {
-        return Err(XshotError::invalid_argument(format!(
+        return Err(CapturaError::invalid_argument(format!(
             "image dimensions must be non-zero, got {width}×{height}"
         )));
     }
@@ -76,13 +76,13 @@ pub fn encode_rgba(
         .checked_mul(height as usize)
         .and_then(|n| n.checked_mul(4))
         .ok_or_else(|| {
-            XshotError::encoding_error(format!(
+            CapturaError::encoding_error(format!(
                 "dimensions overflow: {width}×{height} exceeds addressable memory"
             ))
         })?;
 
     if rgba.len() != expected_len {
-        return Err(XshotError::encoding_error(format!(
+        return Err(CapturaError::encoding_error(format!(
             "buffer length mismatch: expected {expected_len} bytes for \
              {width}×{height} RGBA image, got {}",
             rgba.len()
@@ -132,7 +132,7 @@ pub fn encode_rgba_base64(
     width: u32,
     height: u32,
     format: ImageFormat,
-) -> Result<String, XshotError> {
+) -> Result<String, CapturaError> {
     let encoded = encode_rgba(rgba, width, height, format)?;
 
     let base64_str = BASE64_STANDARD.encode(&encoded);
@@ -171,10 +171,10 @@ fn encode_into<W: std::io::Write>(
     width: u32,
     height: u32,
     format: ImageFormat,
-) -> Result<(), XshotError> {
+) -> Result<(), CapturaError> {
     match format {
         ImageFormat::Raw => {
-            return Err(XshotError::encoding_error(
+            return Err(CapturaError::encoding_error(
                 "Raw format does not use encoding — this is a bug; \
                  the core layer should bypass the encoding pipeline for Raw",
             ));
@@ -182,24 +182,24 @@ fn encode_into<W: std::io::Write>(
         ImageFormat::Png => {
             PngEncoder::new(writer)
                 .write_image(rgba, width, height, image::ExtendedColorType::Rgba8)
-                .map_err(|e| XshotError::encoding_error(format!("PNG encoding failed: {e}")))?;
+                .map_err(|e| CapturaError::encoding_error(format!("PNG encoding failed: {e}")))?;
         }
         ImageFormat::Jpeg => {
             // JPEG does not support alpha. Convert RGBA → RGB.
             let rgb = rgba_to_rgb(rgba);
             JpegEncoder::new(writer)
                 .write_image(&rgb, width, height, image::ExtendedColorType::Rgb8)
-                .map_err(|e| XshotError::encoding_error(format!("JPEG encoding failed: {e}")))?;
+                .map_err(|e| CapturaError::encoding_error(format!("JPEG encoding failed: {e}")))?;
         }
         ImageFormat::WebP => {
             WebPEncoder::new_lossless(writer)
                 .write_image(rgba, width, height, image::ExtendedColorType::Rgba8)
-                .map_err(|e| XshotError::encoding_error(format!("WebP encoding failed: {e}")))?;
+                .map_err(|e| CapturaError::encoding_error(format!("WebP encoding failed: {e}")))?;
         }
         ImageFormat::Avif => {
             AvifEncoder::new(writer)
                 .write_image(rgba, width, height, image::ExtendedColorType::Rgba8)
-                .map_err(|e| XshotError::encoding_error(format!("AVIF encoding failed: {e}")))?;
+                .map_err(|e| CapturaError::encoding_error(format!("AVIF encoding failed: {e}")))?;
         }
     }
 
@@ -383,21 +383,21 @@ mod tests {
     #[test]
     fn error_code_zero_dims_is_invalid_argument() {
         let err = encode_rgba(&[], 0, 1, ImageFormat::Png).unwrap_err();
-        assert_eq!(err.code(), XshotError::invalid_argument("").code());
+        assert_eq!(err.code(), CapturaError::invalid_argument("").code());
     }
 
     /// Buffer/dimension mismatch → `EncodingError` (data integrity).
     #[test]
     fn error_code_buffer_mismatch_is_encoding_error() {
         let err = encode_rgba(&[0u8; 4], 2, 2, ImageFormat::Png).unwrap_err();
-        assert_eq!(err.code(), XshotError::encoding_error("").code());
+        assert_eq!(err.code(), CapturaError::encoding_error("").code());
     }
 
     /// Dimension overflow → `EncodingError`.
     #[test]
     fn error_code_overflow_is_encoding_error() {
         let err = encode_rgba(&[], u32::MAX, u32::MAX, ImageFormat::Png).unwrap_err();
-        assert_eq!(err.code(), XshotError::encoding_error("").code());
+        assert_eq!(err.code(), CapturaError::encoding_error("").code());
     }
 
     // -- Larger image -------------------------------------------------------

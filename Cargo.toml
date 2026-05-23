@@ -15,9 +15,9 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates
-xshot-domain = { path = "crates/domain" }
-xshot-utils = { path = "crates/utils" }
-xshot-core = { path = "crates/core" }
+captura-domain = { path = "crates/domain" }
+captura-utils = { path = "crates/utils" }
+captura-core = { path = "crates/core" }
 
 # Screen capture
 xcap = "0.9"

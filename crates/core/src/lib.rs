@@ -1,4 +1,4 @@
-//! Core xcap abstraction layer for xshot.
+//! Core xcap abstraction layer for captura.
 //!
 //! Pure Rust logic that interfaces with the `xcap` crate. This layer handles
 //! all platform-specific normalization (DPI, coordinates, monitor metadata)

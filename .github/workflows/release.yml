@@ -169,7 +169,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          npx napi build --platform --release -p xshot -o . --target x86_64-unknown-linux-gnu -- --locked
+          npx napi build --platform --release -p captura -o . --target x86_64-unknown-linux-gnu -- --locked
           test -f index.js
           test -f index.d.ts
 
@@ -280,7 +280,7 @@ jobs:
 
       - name: Build native addon
         if: ${{ !matrix.musl }}
-        run: npx napi build --platform --release -p xshot -o . --target ${{ matrix.target }} -- --locked
+        run: npx napi build --platform --release -p captura -o . --target ${{ matrix.target }} -- --locked
 
       - name: Build native addon in Alpine musl
         if: ${{ matrix.musl }}
@@ -321,7 +321,7 @@ jobs:
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
 
               npm ci
-              npx napi build --platform --release -p xshot -o . --target "$NAPI_TARGET" -- --locked
+              npx napi build --platform --release -p captura -o . --target "$NAPI_TARGET" -- --locked
             '
 
           sudo chown -R "$(id -u):$(id -g)" .
@@ -407,14 +407,14 @@ jobs:
           const { join } = require('node:path')
 
           const expected = [
-            { directory: 'darwin-x64', packageName: 'xshot-darwin-x64', os: ['darwin'], cpu: ['x64'] },
-            { directory: 'darwin-arm64', packageName: 'xshot-darwin-arm64', os: ['darwin'], cpu: ['arm64'] },
-            { directory: 'win32-x64-msvc', packageName: 'xshot-win32-x64-msvc', os: ['win32'], cpu: ['x64'] },
-            { directory: 'win32-arm64-msvc', packageName: 'xshot-win32-arm64-msvc', os: ['win32'], cpu: ['arm64'] },
-            { directory: 'linux-x64-gnu', packageName: 'xshot-linux-x64-gnu', os: ['linux'], cpu: ['x64'], libc: ['glibc'] },
-            { directory: 'linux-arm64-gnu', packageName: 'xshot-linux-arm64-gnu', os: ['linux'], cpu: ['arm64'], libc: ['glibc'] },
-            { directory: 'linux-x64-musl', packageName: 'xshot-linux-x64-musl', os: ['linux'], cpu: ['x64'], libc: ['musl'] },
-            { directory: 'linux-arm64-musl', packageName: 'xshot-linux-arm64-musl', os: ['linux'], cpu: ['arm64'], libc: ['musl'] },
+            { directory: 'darwin-x64', packageName: 'captura-darwin-x64', os: ['darwin'], cpu: ['x64'] },
+            { directory: 'darwin-arm64', packageName: 'captura-darwin-arm64', os: ['darwin'], cpu: ['arm64'] },
+            { directory: 'win32-x64-msvc', packageName: 'captura-win32-x64-msvc', os: ['win32'], cpu: ['x64'] },
+            { directory: 'win32-arm64-msvc', packageName: 'captura-win32-arm64-msvc', os: ['win32'], cpu: ['arm64'] },
+            { directory: 'linux-x64-gnu', packageName: 'captura-linux-x64-gnu', os: ['linux'], cpu: ['x64'], libc: ['glibc'] },
+            { directory: 'linux-arm64-gnu', packageName: 'captura-linux-arm64-gnu', os: ['linux'], cpu: ['arm64'], libc: ['glibc'] },
+            { directory: 'linux-x64-musl', packageName: 'captura-linux-x64-musl', os: ['linux'], cpu: ['x64'], libc: ['musl'] },
+            { directory: 'linux-arm64-musl', packageName: 'captura-linux-arm64-musl', os: ['linux'], cpu: ['arm64'], libc: ['musl'] },
           ]
 
           const root = JSON.parse(readFileSync('package.json', 'utf8'))
@@ -477,7 +477,7 @@ jobs:
             }
           }
 
-          console.log(`Validated ${expected.length} generated native packages for xshot ${root.version}`)
+          console.log(`Validated ${expected.length} generated native packages for captura ${root.version}`)
           NODE
 
       - name: Verify package dry-runs
@@ -594,15 +594,15 @@ jobs:
 
           const version = process.env.VERSION
           const packageNames = [
-            'xshot-darwin-x64',
-            'xshot-darwin-arm64',
-            'xshot-win32-x64-msvc',
-            'xshot-win32-arm64-msvc',
-            'xshot-linux-x64-gnu',
-            'xshot-linux-arm64-gnu',
-            'xshot-linux-x64-musl',
-            'xshot-linux-arm64-musl',
-            'xshot',
+            'captura-darwin-x64',
+            'captura-darwin-arm64',
+            'captura-win32-x64-msvc',
+            'captura-win32-arm64-msvc',
+            'captura-linux-x64-gnu',
+            'captura-linux-arm64-gnu',
+            'captura-linux-x64-musl',
+            'captura-linux-arm64-musl',
+            'captura',
           ]
           const expected = packageNames.map((packageName) => `${packageName}-${version}.tgz`).sort()
           const actual = readdirSync('dist').filter((file) => file.endsWith('.tgz')).sort()
@@ -623,15 +623,15 @@ jobs:
           set -euo pipefail
 
           packages=(
-            xshot-darwin-x64
-            xshot-darwin-arm64
-            xshot-win32-x64-msvc
-            xshot-win32-arm64-msvc
-            xshot-linux-x64-gnu
-            xshot-linux-arm64-gnu
-            xshot-linux-x64-musl
-            xshot-linux-arm64-musl
-            xshot
+            captura-darwin-x64
+            captura-darwin-arm64
+            captura-win32-x64-msvc
+            captura-win32-arm64-msvc
+            captura-linux-x64-gnu
+            captura-linux-arm64-gnu
+            captura-linux-x64-musl
+            captura-linux-arm64-musl
+            captura
           )
 
           for package_name in "${packages[@]}"; do
@@ -661,28 +661,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - package: xshot-darwin-x64
-            label: xshot-darwin-x64
+          - package: captura-darwin-x64
+            label: captura-darwin-x64
             host: macos-15-intel
             timeout: 20
-          - package: xshot-darwin-arm64
-            label: xshot-darwin-arm64
+          - package: captura-darwin-arm64
+            label: captura-darwin-arm64
             host: macos-15
             timeout: 20
-          - package: xshot-win32-x64-msvc
-            label: xshot-win32-x64-msvc
+          - package: captura-win32-x64-msvc
+            label: captura-win32-x64-msvc
             host: windows-2025-vs2026
             timeout: 20
-          - package: xshot-win32-arm64-msvc
-            label: xshot-win32-arm64-msvc
+          - package: captura-win32-arm64-msvc
+            label: captura-win32-arm64-msvc
             host: windows-11-arm
             timeout: 30
-          - package: xshot-linux-x64-gnu
-            label: xshot-linux-x64-gnu on Ubuntu 24.04
+          - package: captura-linux-x64-gnu
+            label: captura-linux-x64-gnu on Ubuntu 24.04
             host: ubuntu-24.04
             timeout: 20
-          - package: xshot-linux-arm64-gnu
-            label: xshot-linux-arm64-gnu on Ubuntu 24.04
+          - package: captura-linux-arm64-gnu
+            label: captura-linux-arm64-gnu on Ubuntu 24.04
             host: ubuntu-24.04-arm
             timeout: 20
     steps:
@@ -726,7 +726,7 @@ jobs:
           npm init -y >/dev/null
           npm install --ignore-scripts \
             "../dist/${PLATFORM_PACKAGE}-${VERSION}.tgz" \
-            "../dist/xshot-${VERSION}.tgz"
+            "../dist/captura-${VERSION}.tgz"
 
           if [[ "${RUNNER_OS:-}" == "Linux" ]]; then
             mapfile -t native_files < <(find node_modules -type f -name '*.node' -print | sort)
@@ -755,11 +755,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - package: xshot-linux-x64-musl
+          - package: captura-linux-x64-musl
             host: ubuntu-24.04
             docker_platform: linux/amd64
             timeout: 30
-          - package: xshot-linux-arm64-musl
+          - package: captura-linux-arm64-musl
             host: ubuntu-24.04-arm
             docker_platform: linux/arm64
             timeout: 45
@@ -791,12 +791,12 @@ jobs:
             libxcb-dev libxrandr-dev dbus-dev \
             pipewire-dev wayland-dev mesa-dev
 
-          mkdir /tmp/xshot-smoke
-          cd /tmp/xshot-smoke
+          mkdir /tmp/captura-smoke
+          cd /tmp/captura-smoke
           npm init -y >/dev/null
           npm install --ignore-scripts \
             "/dist/${PLATFORM_PACKAGE}-${VERSION}.tgz" \
-            "/dist/xshot-${VERSION}.tgz"
+            "/dist/captura-${VERSION}.tgz"
 
           node --test /tests/installed-package-smoke.mts
           ALPINE
@@ -975,15 +975,15 @@ jobs:
           set -euo pipefail
 
           expected=(
-            xshot-darwin-x64
-            xshot-darwin-arm64
-            xshot-win32-x64-msvc
-            xshot-win32-arm64-msvc
-            xshot-linux-x64-gnu
-            xshot-linux-arm64-gnu
-            xshot-linux-x64-musl
-            xshot-linux-arm64-musl
-            xshot
+            captura-darwin-x64
+            captura-darwin-arm64
+            captura-win32-x64-msvc
+            captura-win32-arm64-msvc
+            captura-linux-x64-gnu
+            captura-linux-arm64-gnu
+            captura-linux-x64-musl
+            captura-linux-arm64-musl
+            captura
           )
 
           mapfile -t actual < <(find dist -maxdepth 1 -type f -name '*.tgz' -printf '%f\n' | sort)
@@ -1013,6 +1013,6 @@ jobs:
           else
             gh release create "$tag" dist/*.tgz \
               --verify-tag \
-              --title "xshot ${tag}" \
+              --title "captura ${tag}" \
               --generate-notes
           fi

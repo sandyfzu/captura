@@ -4,12 +4,12 @@
 //! but carry `#[napi(object)]` so that napi-rs can serialise them as plain
 //! JavaScript objects. Conversion is done via `From` impls.
 
-use napi::bindgen_prelude::Buffer;
-use napi_derive::napi;
-use xshot_domain::{
+use captura_domain::{
     Base64CaptureResult, Base64Screenshot, Bounds, CaptureResult, ImageFormat, MonitorInfo,
     Screenshot, Size,
 };
+use napi::bindgen_prelude::Buffer;
+use napi_derive::napi;
 
 /// A rectangular region in a 2D coordinate space.
 ///
@@ -339,7 +339,7 @@ impl From<Base64CaptureResult> for JsBase64CaptureResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xshot_domain::{Bounds, ImageFormat, MonitorInfo, Size};
+    use captura_domain::{Bounds, ImageFormat, MonitorInfo, Size};
 
     // -- Test fixtures --------------------------------------------------------
 
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn js_base64_screenshot_from_domain() {
-        let s = xshot_domain::Base64Screenshot {
+        let s = captura_domain::Base64Screenshot {
             size: Size {
                 width: 100,
                 height: 200,
@@ -502,9 +502,9 @@ mod tests {
 
     #[test]
     fn js_base64_capture_result_from_domain() {
-        let r = xshot_domain::Base64CaptureResult {
+        let r = captura_domain::Base64CaptureResult {
             monitor: sample_monitor_info(),
-            screenshot: xshot_domain::Base64Screenshot {
+            screenshot: captura_domain::Base64Screenshot {
                 size: Size {
                     width: 2560,
                     height: 1600,

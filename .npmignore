@@ -1,5 +1,5 @@
 # Exclude build artifacts and source from npm package.
-# Platform-specific binaries are distributed via separate @xshot/* packages.
+# Platform-specific binaries are distributed via separate captura-* packages.
 
 target/
 crates/

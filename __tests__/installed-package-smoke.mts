@@ -1,5 +1,5 @@
 // Smoke tests for the packed npm package installed into a temporary project.
-// Run from the consumer project directory after installing xshot tarballs:
+// Run from the consumer project directory after installing captura tarballs:
 //   node --test /path/to/__tests__/installed-package-smoke.mts
 
 import assert from 'node:assert/strict'
@@ -8,16 +8,16 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 
-type InstalledXshot = Record<string, unknown>
+type InstalledCaptura = Record<string, unknown>
 
 const smokeRequire = createRequire(join(process.cwd(), 'package.json'))
 
-function loadInstalledPackage(): InstalledXshot {
-  return smokeRequire('xshot') as InstalledXshot
+function loadInstalledPackage(): InstalledCaptura {
+  return smokeRequire('captura') as InstalledCaptura
 }
 
 function installedPackageDirectory(): string {
-  return dirname(smokeRequire.resolve('xshot/package.json'))
+  return dirname(smokeRequire.resolve('captura/package.json'))
 }
 
 function declaredFunctionExports(): string[] {
@@ -51,17 +51,17 @@ function assertInvalidArgument(error: unknown): true {
   return true
 }
 
-describe('installed xshot package', () => {
-  const xshot = loadInstalledPackage()
+describe('installed captura package', () => {
+  const captura = loadInstalledPackage()
 
   for (const name of declaredFunctionExports()) {
     it(`exports ${name} as a function`, () => {
-      assert.equal(typeof xshot[name], 'function')
+      assert.equal(typeof captura[name], 'function')
     })
   }
 
   it('rejects an invalid image format with INVALID_ARGUMENT', async () => {
-    const captureAllMonitors = xshot.captureAllMonitors
+    const captureAllMonitors = captura.captureAllMonitors
     assert.equal(typeof captureAllMonitors, 'function')
 
     await assert.rejects(

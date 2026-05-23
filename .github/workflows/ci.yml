@@ -279,7 +279,7 @@ jobs:
               export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
 
               npm ci
-              npx napi build --platform --release -p xshot -o . --target "$NAPI_TARGET" -- --locked
+              npx napi build --platform --release -p captura -o . --target "$NAPI_TARGET" -- --locked
             '
 
           # Fix file ownership after Docker (container runs as root)
@@ -288,7 +288,7 @@ jobs:
       # ── Non-Docker build ───────────────────────────────────────────────
       - name: Build
         if: ${{ !matrix.settings.docker }}
-        run: npx napi build --platform --release -p xshot -o . --target ${{ matrix.settings.target }} -- --locked
+        run: npx napi build --platform --release -p captura -o . --target ${{ matrix.settings.target }} -- --locked
 
       - uses: actions/upload-artifact@v7
         with:

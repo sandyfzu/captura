@@ -49,17 +49,17 @@ if [[ ! -d "$dist_dir" ]]; then
   exit 1
 fi
 
-root_package="xshot"
+root_package="captura"
 root_tarball="${dist_dir}/${root_package}-${VERSION}.tgz"
 platform_packages=(
-  xshot-darwin-x64
-  xshot-darwin-arm64
-  xshot-win32-x64-msvc
-  xshot-win32-arm64-msvc
-  xshot-linux-x64-gnu
-  xshot-linux-arm64-gnu
-  xshot-linux-x64-musl
-  xshot-linux-arm64-musl
+  captura-darwin-x64
+  captura-darwin-arm64
+  captura-win32-x64-msvc
+  captura-win32-arm64-msvc
+  captura-linux-x64-gnu
+  captura-linux-arm64-gnu
+  captura-linux-x64-musl
+  captura-linux-arm64-musl
 )
 
 expected_tarballs=("$root_tarball")

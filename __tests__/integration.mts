@@ -1,4 +1,4 @@
-// Integration tests for the xshot native module.
+// Integration tests for the captura native module.
 //
 // These tests exercise the compiled `.node` binary through the public JS API.
 // Display-dependent tests are skipped automatically in headless environments

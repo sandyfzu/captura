@@ -1,4 +1,4 @@
-//! NAPI-rs bindings for xshot.
+//! NAPI-rs bindings for captura.
 //!
 //! This is the **only** layer that imports `napi` and `napi_derive`. It exposes
 //! public functions to Node.js via `#[napi]` macros and handles conversion
@@ -18,8 +18,8 @@ mod types;
 
 use napi_derive::napi;
 
+use captura_domain::ImageFormat;
 use types::{JsBase64CaptureResult, JsCaptureResult, JsMonitor};
-use xshot_domain::ImageFormat;
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -32,7 +32,7 @@ use xshot_domain::ImageFormat;
 /// ```
 #[napi]
 pub async fn get_monitors() -> napi::Result<Vec<JsMonitor>> {
-    let monitors = xshot_core::get_monitors().await.map_err(error::to_napi)?;
+    let monitors = captura_core::get_monitors().await.map_err(error::to_napi)?;
     Ok(monitors.into_iter().map(JsMonitor::from).collect())
 }
 
@@ -45,7 +45,7 @@ pub async fn get_monitors() -> napi::Result<Vec<JsMonitor>> {
 /// ```
 #[napi]
 pub async fn get_monitor_by_id(id: u32) -> napi::Result<JsMonitor> {
-    let info = xshot_core::get_monitor_by_id(id)
+    let info = captura_core::get_monitor_by_id(id)
         .await
         .map_err(error::to_napi)?;
     Ok(JsMonitor::from(info))
@@ -77,7 +77,7 @@ pub async fn capture_monitor(
     #[napi(ts_arg_type = "ImageFormat | (string & {})")] format: Option<String>,
 ) -> napi::Result<JsCaptureResult> {
     let fmt = parse_format(format)?;
-    let result = xshot_core::capture_monitor(id, fmt)
+    let result = captura_core::capture_monitor(id, fmt)
         .await
         .map_err(error::to_napi)?;
     Ok(JsCaptureResult::from(result))
@@ -99,7 +99,7 @@ pub async fn capture_all_monitors(
     #[napi(ts_arg_type = "ImageFormat | (string & {})")] format: Option<String>,
 ) -> napi::Result<Vec<JsCaptureResult>> {
     let fmt = parse_format(format)?;
-    let results = xshot_core::capture_all_monitors(fmt)
+    let results = captura_core::capture_all_monitors(fmt)
         .await
         .map_err(error::to_napi)?;
     Ok(results.into_iter().map(JsCaptureResult::from).collect())
@@ -125,7 +125,7 @@ pub async fn capture_monitor_base64(
 ) -> napi::Result<JsBase64CaptureResult> {
     let fmt = parse_format(format)?;
     reject_raw_for_base64(fmt)?;
-    let result = xshot_core::capture_monitor_base64(id, fmt)
+    let result = captura_core::capture_monitor_base64(id, fmt)
         .await
         .map_err(error::to_napi)?;
     Ok(JsBase64CaptureResult::from(result))
@@ -149,7 +149,7 @@ pub async fn capture_all_monitors_base64(
 ) -> napi::Result<Vec<JsBase64CaptureResult>> {
     let fmt = parse_format(format)?;
     reject_raw_for_base64(fmt)?;
-    let results = xshot_core::capture_all_monitors_base64(fmt)
+    let results = captura_core::capture_all_monitors_base64(fmt)
         .await
         .map_err(error::to_napi)?;
     Ok(results
@@ -187,13 +187,15 @@ fn parse_format(format: Option<String>) -> napi::Result<ImageFormat> {
 /// `Raw`.
 fn reject_raw_for_base64(format: ImageFormat) -> napi::Result<()> {
     if format == ImageFormat::Raw {
-        return Err(error::to_napi(xshot_domain::XshotError::invalid_argument(
-            "Raw format is not supported for Base64 capture functions — \
+        return Err(error::to_napi(
+            captura_domain::CapturaError::invalid_argument(
+                "Raw format is not supported for Base64 capture functions — \
                  raw RGBA8 pixel data is not self-describing and cannot be \
                  used in data URIs. Use captureMonitor() or \
                  captureAllMonitors() with 'Raw' instead, or choose an \
                  encoded format (Png, Jpeg, WebP, Avif) for Base64 output.",
-        )));
+            ),
+        ));
     }
     Ok(())
 }

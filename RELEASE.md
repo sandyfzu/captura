@@ -1,6 +1,6 @@
 # Release Runbook
 
-xshot is a native Node.js module. The root npm package requires a matching
+captura is a native Node.js module. The root npm package requires a matching
 platform package containing the correct `.node` binary for each target. A broken
 or incomplete publish can leave consumers unable to load the module. Follow this
 runbook for every stable release.
@@ -24,15 +24,15 @@ Ensure the npm account `sandyfzu` owns all nine package names before publishing:
 
 | Package | Purpose |
 | ------- | ------- |
-| `xshot` | Root package — installed by consumers |
-| `xshot-darwin-x64` | macOS Intel binary |
-| `xshot-darwin-arm64` | macOS Apple Silicon binary |
-| `xshot-win32-x64-msvc` | Windows x64 binary |
-| `xshot-win32-arm64-msvc` | Windows ARM64 binary |
-| `xshot-linux-x64-gnu` | Linux x64 glibc binary |
-| `xshot-linux-arm64-gnu` | Linux ARM64 glibc binary |
-| `xshot-linux-x64-musl` | Linux x64 musl (Alpine) binary |
-| `xshot-linux-arm64-musl` | Linux ARM64 musl (Alpine) binary |
+| `captura` | Root package — installed by consumers |
+| `captura-darwin-x64` | macOS Intel binary |
+| `captura-darwin-arm64` | macOS Apple Silicon binary |
+| `captura-win32-x64-msvc` | Windows x64 binary |
+| `captura-win32-arm64-msvc` | Windows ARM64 binary |
+| `captura-linux-x64-gnu` | Linux x64 glibc binary |
+| `captura-linux-arm64-gnu` | Linux ARM64 glibc binary |
+| `captura-linux-x64-musl` | Linux x64 musl (Alpine) binary |
+| `captura-linux-arm64-musl` | Linux ARM64 musl (Alpine) binary |
 
 The GNU/Linux glibc packages are built and smoke-tested on Ubuntu 24.04. This is
 the current prebuilt baseline because xcap's current pipewire-rs/libspa
@@ -79,7 +79,7 @@ Use these exact values for every package:
 | Field | Value |
 | ----- | ----- |
 | Organization or user | `sandyfzu` |
-| Repository | `xshot` |
+| Repository | `captura` |
 | Workflow filename | `release.yml` |
 | Environment name | `npm-production` |
 
@@ -90,7 +90,7 @@ discovered when `npm publish` attempts the OIDC exchange.
 ### Additional Requirements
 
 - Keep `package.json` `repository.url` set to
-  `git+https://github.com/sandyfzu/xshot.git`. npm Trusted Publishing verifies
+  `git+https://github.com/sandyfzu/captura.git`. npm Trusted Publishing verifies
   this during publish.
 - Use GitHub-hosted runners for the publish job. npm Trusted Publishing does not
   support self-hosted runners.
@@ -221,7 +221,7 @@ Pack into a temporary directory and dry-run publishing the root tarball:
 ```bash
 release_dir="$(mktemp -d)"
 npm pack --pack-destination "$release_dir" --json
-npm publish "$release_dir/xshot-$(node -p "require('./package.json').version").tgz" --dry-run --tag next --registry https://registry.npmjs.org
+npm publish "$release_dir/captura-$(node -p "require('./package.json').version").tgz" --dry-run --tag next --registry https://registry.npmjs.org
 rm -rf "$release_dir"
 ```
 
@@ -285,7 +285,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
-npx napi build --platform --release -p xshot -o . -- --locked
+npx napi build --platform --release -p captura -o . -- --locked
 npm run typecheck
 npm test
 npm audit --audit-level=moderate
@@ -354,15 +354,15 @@ Review the workflow run to confirm it started from the correct tag, then click
 After the publish job completes, verify all nine packages appear in the registry:
 
 ```bash
-npm info xshot versions --json
-npm info xshot-darwin-arm64 versions --json
-npm info xshot-darwin-x64 versions --json
-npm info xshot-linux-x64-gnu versions --json
-npm info xshot-linux-arm64-gnu versions --json
-npm info xshot-linux-x64-musl versions --json
-npm info xshot-linux-arm64-musl versions --json
-npm info xshot-win32-x64-msvc versions --json
-npm info xshot-win32-arm64-msvc versions --json
+npm info captura versions --json
+npm info captura-darwin-arm64 versions --json
+npm info captura-darwin-x64 versions --json
+npm info captura-linux-x64-gnu versions --json
+npm info captura-linux-arm64-gnu versions --json
+npm info captura-linux-x64-musl versions --json
+npm info captura-linux-arm64-musl versions --json
+npm info captura-win32-x64-msvc versions --json
+npm info captura-win32-arm64-msvc versions --json
 ```
 
 Each command should list the new version.
@@ -378,10 +378,10 @@ From a clean directory with no local tarball files, install from npm and verify
 the module loads:
 
 ```bash
-mkdir /tmp/xshot-verify && cd /tmp/xshot-verify
+mkdir /tmp/captura-verify && cd /tmp/captura-verify
 npm init -y
-npm install xshot
-node -e "const x = require('xshot'); console.log(Object.keys(x))"
+npm install captura
+node -e "const x = require('captura'); console.log(Object.keys(x))"
 ```
 
 The `Object.keys(x)` output should list all six public async functions.
@@ -397,7 +397,7 @@ refuses a publish dispatch from a branch.
 ### Using the GitHub Web UI
 
 1. Go to the repository on GitHub:
-   `https://github.com/sandyfzu/xshot`
+   `https://github.com/sandyfzu/captura`
 2. Click the **Actions** tab at the top of the page.
 3. In the left sidebar, under **Workflows**, click **Release**.
 4. On the right side of the page, click the **Run workflow** button. A form
@@ -505,7 +505,7 @@ macOS, Windows, and Linux GNU. Linux GNU tarballs are smoked on Ubuntu 24.04,
 the current prebuilt GNU/Linux baseline. Verifies:
 
 - Package installation succeeds from tarballs.
-- `require('xshot')` loads the native binding.
+- `require('captura')` loads the native binding.
 - Every function declared by the installed `index.d.ts` exists at runtime.
 - Invalid format rejection returns `[INVALID_ARGUMENT]` through the documented
   message-prefix contract.
@@ -594,12 +594,12 @@ If npm returns `ENEEDAUTH` or an OIDC error, verify each field before rerunning:
 | ----- | -------------- |
 | Trusted publisher configured for every package | Yes |
 | Organization or user | `sandyfzu` |
-| Repository | `xshot` |
+| Repository | `captura` |
 | Workflow filename | `release.yml` (not the full path) |
 | Environment name | `npm-production` |
 | Runner type | GitHub-hosted (not self-hosted) |
 | `id-token: write` granted to publish job | Yes |
-| `repository.url` in `package.json` | `git+https://github.com/sandyfzu/xshot.git` |
+| `repository.url` in `package.json` | `git+https://github.com/sandyfzu/captura.git` |
 
 Do not debug with `npm whoami` — OIDC authentication is scoped to the publish
 operation and `whoami` does not reflect OIDC status.
@@ -623,7 +623,7 @@ refuses to republish the root package if it exists.
 
 ### npm Package Name Rejection
 
-If npm rejects unscoped package names such as `xshot-darwin-arm64` (spam
+If npm rejects unscoped package names such as `captura-darwin-arm64` (spam
 detection), move platform packages under an owned npm scope by updating the
 NAPI-RS package name configuration and regenerating NAPI outputs. Do not edit
 generated loader files by hand.

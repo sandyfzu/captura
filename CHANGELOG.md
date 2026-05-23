@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Corrected public documentation for async error matching: xshot domain error
+- Corrected public documentation for async error matching: captura domain error
   codes are documented as `[CODE]` message prefixes instead of a custom
   `err.code` property.
 - Added maintainer release-readiness documentation for NAPI-RS platform package
@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added an explicit one-time token-bootstrap publish path for the first release
   of brand-new npm package names before npm Trusted Publishing can be configured.
 - Clarified that high-concurrency encode scheduling is an application-level
-  policy decision; xshot offloads blocking work but does not impose a global
+  policy decision; captura offloads blocking work but does not impose a global
   concurrency limit across independent calls.
 
 ### Fixed
@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.0] - 2026-04-10
 
-Initial release of xshot — a cross-platform screen capture native module for
+Initial release of captura — a cross-platform screen capture native module for
 Node.js, built with Rust.
 
 ### Added
@@ -106,5 +106,5 @@ Node.js, built with Rust.
   covering module exports, error handling, live capture, format coverage, and
   Raw buffer size validation.
 
-[unreleased]: https://github.com/sandyfzu/xshot/compare/v0.9.0...HEAD
-[0.9.0]: https://github.com/sandyfzu/xshot/releases/tag/v0.9.0
+[unreleased]: https://github.com/sandyfzu/captura/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/sandyfzu/captura/releases/tag/v0.9.0

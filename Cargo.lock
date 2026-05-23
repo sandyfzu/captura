@@ -388,6 +388,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
+name = "captura"
+version = "0.9.0"
+dependencies = [
+ "captura-core",
+ "captura-domain",
+ "napi",
+ "napi-build",
+ "napi-derive",
+]
+
+[[package]]
+name = "captura-core"
+version = "0.9.0"
+dependencies = [
+ "base64",
+ "captura-domain",
+ "captura-utils",
+ "log",
+ "tokio",
+ "xcap",
+]
+
+[[package]]
+name = "captura-domain"
+version = "0.9.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "captura-utils"
+version = "0.9.0"
+dependencies = [
+ "base64",
+ "captura-domain",
+ "image",
+ "log",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3250,46 +3290,6 @@ name = "xml-rs"
 version = "0.8.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
-
-[[package]]
-name = "xshot"
-version = "0.9.0"
-dependencies = [
- "napi",
- "napi-build",
- "napi-derive",
- "xshot-core",
- "xshot-domain",
-]
-
-[[package]]
-name = "xshot-core"
-version = "0.9.0"
-dependencies = [
- "base64",
- "log",
- "tokio",
- "xcap",
- "xshot-domain",
- "xshot-utils",
-]
-
-[[package]]
-name = "xshot-domain"
-version = "0.9.0"
-dependencies = [
- "thiserror",
-]
-
-[[package]]
-name = "xshot-utils"
-version = "0.9.0"
-dependencies = [
- "base64",
- "image",
- "log",
- "xshot-domain",
-]
 
 [[package]]
 name = "y4m"

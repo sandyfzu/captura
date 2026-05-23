@@ -1,8 +1,8 @@
-# AGENTS.md — xshot
+# AGENTS.md — captura
 
 ## Project Identity
 
-**xshot** is a production-grade Node.js native module implemented in Rust. It is a high-level, ergonomic, and safe wrapper around the `xcap` crate, using `napi-rs` as the binding layer to expose cross-platform screen capture capabilities to Node.js and TypeScript consumers.
+**captura** is a production-grade Node.js native module implemented in Rust. It is a high-level, ergonomic, and safe wrapper around the `xcap` crate, using `napi-rs` as the binding layer to expose cross-platform screen capture capabilities to Node.js and TypeScript consumers.
 
 The module is designed to be published as an npm package with full TypeScript type definitions, platform-specific binary distribution, and a promise-based async API.
 
@@ -90,7 +90,7 @@ The codebase is a workspace organized into four clearly separated layers. Do not
 
 ### Error Type Design
 
-Define a unified error enum (e.g., `XshotError`) using `thiserror`. Every error variant must include:
+Define a unified error enum (e.g., `CapturaError`) using `thiserror`. Every error variant must include:
 
 - A clear, human-readable message.
 - An error category/code (string identifier for programmatic matching on the JS side).
@@ -118,12 +118,12 @@ Additional categories should be added when they make semantic sense for the doma
 ### JavaScript Representation
 
 - Errors are surfaced as standard JavaScript `Error` objects.
-- The current stable JavaScript contract embeds the xshot domain code in the
+- The current stable JavaScript contract embeds the captura domain code in the
   beginning of `err.message` as `[CODE] description`.
 - Do not document or test custom `err.code` for async exports unless the
   implementation has been changed and verified. With napi-rs v3 async promise
   rejections, `err.code` is reserved for the NAPI status code rather than the
-  xshot domain category.
+  captura domain category.
 - Prefer structured error categories over plain messages. If a future napi-rs
   version supports domain-specific promise rejection codes, update the Rust
   interop tests, TypeScript docs, README, and this file together.
@@ -154,7 +154,7 @@ Required actions:
 - Do not spawn unnecessary tasks; keep the concurrency model simple and predictable.
 - Do not add a global concurrency limit for all independent capture/encode calls
   unless there is measured evidence and an explicit API design. Application-level
-  queueing and backpressure are consumer policy decisions; xshot should document
+  queueing and backpressure are consumer policy decisions; captura should document
   the cost of concurrent high-resolution encodes and keep `captureAllMonitors*`
   internally conservative.
 
@@ -290,7 +290,7 @@ interface Size {
 - **Base64 variants** (`captureMonitorBase64`, `captureAllMonitorsBase64`) return the encoded image data as an RFC 4648 Base64 string instead of a `Buffer`. Base64 encoding is performed on the Rust side using the `base64` crate before crossing the FFI boundary. **Raw is not supported for Base64** — passing `'Raw'` to a Base64 function returns an `INVALID_ARGUMENT` error because raw pixel data is not self-describing and has no meaningful MIME type for data URIs.
 - Encoding is performed on the Rust side using the `image` crate (a direct dependency, also a transitive dependency via `xcap`) before transferring ownership to JavaScript.
 - Supported encoding formats (PNG, JPEG, WebP, AVIF) are selected via an optional parameter (PNG default) and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic. All formats use default encoder settings — WebP is lossless only.
-- **Raw bypasses the utility encoding layer entirely.** In the core layer, `RgbaImage::into_raw()` moves the underlying `Vec<u8>` to the `Screenshot` struct without additional copies or allocations. The interop layer then wraps this `Vec<u8>` into a NAPI `Buffer`, which transfers ownership to the V8 garbage collector — again without copying. Note that the upstream capture library normalises the OS-native pixel format (e.g. BGRA, various bit depths) to RGBA8 before xshot receives the buffer.
+- **Raw bypasses the utility encoding layer entirely.** In the core layer, `RgbaImage::into_raw()` moves the underlying `Vec<u8>` to the `Screenshot` struct without additional copies or allocations. The interop layer then wraps this `Vec<u8>` into a NAPI `Buffer`, which transfers ownership to the V8 garbage collector — again without copying. Note that the upstream capture library normalises the OS-native pixel format (e.g. BGRA, various bit depths) to RGBA8 before captura receives the buffer.
 - For encoded formats, avoid unnecessary memory copies. Encode once on the Rust side and transfer ownership to JavaScript.
 - Large image buffers must not be cloned unnecessarily.
 - Be mindful of buffer sizes, especially for high-DPI monitors (source RGBA is width × height × 4 bytes — e.g. a 3840×2160 display produces ~33 MB of raw pixel data before encoding).
@@ -324,7 +324,7 @@ interface Size {
 - The smoke report runner is observation-oriented rather than
   assertion-oriented. It must exercise every public function and supported
   variant, save monitor/capture/error/timing artifacts under the ignored
-  `xshot-smoke-reports/` directory, and generate a self-contained HTML report
+  `captura-smoke-reports/` directory, and generate a self-contained HTML report
   that relates monitor metadata to the screenshots produced by each API.
 
 ### Cross-Platform Validation
@@ -449,6 +449,6 @@ When extending, add new modules rather than modifying existing ones. Follow the 
 
 ## This file (AGENTS.md)
 
-- This file is a living document that captures the architectural vision, coding standards, and design principles for the xshot project.
+- This file is a living document that captures the architectural vision, coding standards, and design principles for the captura project.
 - It is intended to guide contributors and maintainers in writing high-quality, consistent code that adheres to the project's goals and constraints.
 - This file should be updated whenever there are significant changes to the architecture, coding standards, or design principles. It serves as the single source of truth for how the project should be structured and developed.

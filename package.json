@@ -1,5 +1,5 @@
 {
-  "name": "xshot",
+  "name": "captura",
   "version": "0.9.0",
   "description": "Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API",
   "keywords": [
@@ -12,18 +12,18 @@
     "rust",
     "xcap"
   ],
-  "homepage": "https://github.com/sandyfzu/xshot#readme",
+  "homepage": "https://github.com/sandyfzu/captura#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sandyfzu/xshot.git"
+    "url": "git+https://github.com/sandyfzu/captura.git"
   },
   "bugs": {
-    "url": "https://github.com/sandyfzu/xshot/issues"
+    "url": "https://github.com/sandyfzu/captura/issues"
   },
   "main": "index.js",
   "types": "index.d.ts",
   "napi": {
-    "binaryName": "xshot",
+    "binaryName": "captura",
     "targets": [
       "x86_64-apple-darwin",
       "aarch64-apple-darwin",
@@ -40,8 +40,8 @@
     "node": ">= 20.3.0"
   },
   "scripts": {
-    "build": "napi build --platform --release -p xshot -o .",
-    "build:debug": "napi build --platform -p xshot -o .",
+    "build": "napi build --platform --release -p captura -o .",
+    "build:debug": "napi build --platform -p captura -o .",
     "test": "node --test __tests__/integration.mts",
     "test:smoke-report": "npm run build && node __tests__/smoke-report.mts",
     "typecheck": "tsc --noEmit",

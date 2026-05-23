@@ -1,4 +1,4 @@
-//! Utility helpers for xshot.
+//! Utility helpers for captura.
 //!
 //! Shared utilities including error conversion, image encoding, buffer
 //! manipulation, and cross-platform normalization logic.

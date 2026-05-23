@@ -41,13 +41,13 @@
 //! - `xcap` v0.9.3 — `Monitor::all()`, `Monitor::capture_image()`
 //! - `tokio::task::spawn_blocking` — offloads synchronous work
 
+use captura_domain::{
+    Base64CaptureResult, Base64Screenshot, Bounds, CapturaError, CaptureResult, ImageFormat,
+    MonitorInfo, Screenshot, Size,
+};
+use captura_utils::{encode_rgba, encode_rgba_base64};
 use log::debug;
 use xcap::image::RgbaImage;
-use xshot_domain::{
-    Base64CaptureResult, Base64Screenshot, Bounds, CaptureResult, ImageFormat, MonitorInfo,
-    Screenshot, Size, XshotError,
-};
-use xshot_utils::{encode_rgba, encode_rgba_base64};
 
 // ---------------------------------------------------------------------------
 // Internal raw-capture types
@@ -146,22 +146,24 @@ fn to_logical_dimensions(
 /// Extracts normalised [`MonitorInfo`] from an `xcap::Monitor`.
 ///
 /// Each accessor on `xcap::Monitor` returns `XCapResult<T>`. We map
-/// failures to [`XshotError::ResourceUnavailable`] so the caller gets a
+/// failures to [`CapturaError::ResourceUnavailable`] so the caller gets a
 /// structured error rather than a raw xcap error string.
 ///
 /// Dimensions (x, y, width, height) are normalised to **physical pixels**
 /// on all platforms. See module-level documentation for details.
-fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
-    let id = m
-        .id()
-        .map_err(|e| XshotError::resource_unavailable(format!("failed to read monitor id: {e}")))?;
+fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, CapturaError> {
+    let id = m.id().map_err(|e| {
+        CapturaError::resource_unavailable(format!("failed to read monitor id: {e}"))
+    })?;
 
     let name = m.name().map_err(|e| {
-        XshotError::resource_unavailable(format!("failed to read monitor name: {e}"))
+        CapturaError::resource_unavailable(format!("failed to read monitor name: {e}"))
     })?;
 
     let friendly_name = m.friendly_name().map_err(|e| {
-        XshotError::resource_unavailable(format!("monitor {id}: failed to read friendly_name: {e}"))
+        CapturaError::resource_unavailable(format!(
+            "monitor {id}: failed to read friendly_name: {e}"
+        ))
     })?;
 
     // --- Scale factor (read early; needed for dimension normalisation) -------
@@ -170,7 +172,7 @@ fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
     let scale_factor = m
         .scale_factor()
         .map_err(|e| {
-            XshotError::resource_unavailable(format!(
+            CapturaError::resource_unavailable(format!(
                 "monitor {id}: failed to read scale_factor: {e}"
             ))
         })
@@ -179,19 +181,19 @@ fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
     // --- Raw geometry (platform-dependent coordinate system) -----------------
 
     let raw_x = m.x().map_err(|e| {
-        XshotError::resource_unavailable(format!("monitor {id}: failed to read x: {e}"))
+        CapturaError::resource_unavailable(format!("monitor {id}: failed to read x: {e}"))
     })?;
 
     let raw_y = m.y().map_err(|e| {
-        XshotError::resource_unavailable(format!("monitor {id}: failed to read y: {e}"))
+        CapturaError::resource_unavailable(format!("monitor {id}: failed to read y: {e}"))
     })?;
 
     let raw_width = m.width().map_err(|e| {
-        XshotError::resource_unavailable(format!("monitor {id}: failed to read width: {e}"))
+        CapturaError::resource_unavailable(format!("monitor {id}: failed to read width: {e}"))
     })?;
 
     let raw_height = m.height().map_err(|e| {
-        XshotError::resource_unavailable(format!("monitor {id}: failed to read height: {e}"))
+        CapturaError::resource_unavailable(format!("monitor {id}: failed to read height: {e}"))
     })?;
 
     // --- Normalise to physical pixels ----------------------------------------
@@ -209,19 +211,23 @@ fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
     let rotation = m
         .rotation()
         .map_err(|e| {
-            XshotError::resource_unavailable(format!("monitor {id}: failed to read rotation: {e}"))
+            CapturaError::resource_unavailable(format!(
+                "monitor {id}: failed to read rotation: {e}"
+            ))
         })
         .map(f64::from)?;
 
     let frequency = m
         .frequency()
         .map_err(|e| {
-            XshotError::resource_unavailable(format!("monitor {id}: failed to read frequency: {e}"))
+            CapturaError::resource_unavailable(format!(
+                "monitor {id}: failed to read frequency: {e}"
+            ))
         })
         .map(f64::from)?;
 
     let is_primary = m.is_primary().map_err(|e| {
-        XshotError::resource_unavailable(format!("monitor {id}: failed to read is_primary: {e}"))
+        CapturaError::resource_unavailable(format!("monitor {id}: failed to read is_primary: {e}"))
     })?;
 
     // is_builtin may not be supported on all platforms; default to false.
@@ -268,12 +274,12 @@ fn monitor_info(m: &xcap::Monitor) -> Result<MonitorInfo, XshotError> {
 ///
 /// # Errors
 ///
-/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
-/// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn get_monitors() -> Result<Vec<MonitorInfo>, XshotError> {
+/// - [`CapturaError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`CapturaError::InternalError`] if the blocking task panics.
+pub async fn get_monitors() -> Result<Vec<MonitorInfo>, CapturaError> {
     tokio::task::spawn_blocking(|| {
         let monitors = xcap::Monitor::all().map_err(|e| {
-            XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
+            CapturaError::resource_unavailable(format!("failed to list monitors: {e}"))
         })?;
 
         let infos: Vec<MonitorInfo> = monitors
@@ -285,20 +291,20 @@ pub async fn get_monitors() -> Result<Vec<MonitorInfo>, XshotError> {
         Ok(infos)
     })
     .await
-    .map_err(|e| XshotError::internal(format!("monitor listing task panicked: {e}")))?
+    .map_err(|e| CapturaError::internal(format!("monitor listing task panicked: {e}")))?
 }
 
 /// Returns normalised metadata for the monitor with the given `id`.
 ///
 /// # Errors
 ///
-/// - [`XshotError::MonitorNotFound`] if no monitor matches the `id`.
-/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
-/// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
+/// - [`CapturaError::MonitorNotFound`] if no monitor matches the `id`.
+/// - [`CapturaError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`CapturaError::InternalError`] if the blocking task panics.
+pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, CapturaError> {
     tokio::task::spawn_blocking(move || {
         let monitors = xcap::Monitor::all().map_err(|e| {
-            XshotError::resource_unavailable(format!("failed to list monitors: {e}"))
+            CapturaError::resource_unavailable(format!("failed to list monitors: {e}"))
         })?;
 
         for m in &monitors {
@@ -310,10 +316,10 @@ pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
             }
         }
 
-        Err(XshotError::monitor_not_found(id))
+        Err(CapturaError::monitor_not_found(id))
     })
     .await
-    .map_err(|e| XshotError::internal(format!("monitor lookup task panicked: {e}")))?
+    .map_err(|e| CapturaError::internal(format!("monitor lookup task panicked: {e}")))?
 }
 
 // ---------------------------------------------------------------------------
@@ -329,17 +335,17 @@ pub async fn get_monitor_by_id(id: u32) -> Result<MonitorInfo, XshotError> {
 ///
 /// # Errors
 ///
-/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
-/// - [`XshotError::MonitorNotFound`] if no monitor matches the `id`.
-/// - [`XshotError::CaptureFailed`] if the OS capture call fails.
-fn raw_capture_monitor(id: u32) -> Result<RawCapture, XshotError> {
+/// - [`CapturaError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`CapturaError::MonitorNotFound`] if no monitor matches the `id`.
+/// - [`CapturaError::CaptureFailed`] if the OS capture call fails.
+fn raw_capture_monitor(id: u32) -> Result<RawCapture, CapturaError> {
     let monitors = xcap::Monitor::all()
-        .map_err(|e| XshotError::resource_unavailable(format!("failed to list monitors: {e}")))?;
+        .map_err(|e| CapturaError::resource_unavailable(format!("failed to list monitors: {e}")))?;
 
     let xcap_monitor = monitors
         .iter()
         .find(|m| m.id().is_ok_and(|mid| mid == id))
-        .ok_or_else(|| XshotError::monitor_not_found(id))?;
+        .ok_or_else(|| CapturaError::monitor_not_found(id))?;
 
     let info = monitor_info(xcap_monitor)?;
 
@@ -350,7 +356,7 @@ fn raw_capture_monitor(id: u32) -> Result<RawCapture, XshotError> {
 
     let image = xcap_monitor
         .capture_image()
-        .map_err(|e| XshotError::capture_failed(format!("monitor {id}: {e}")))?;
+        .map_err(|e| CapturaError::capture_failed(format!("monitor {id}: {e}")))?;
 
     Ok(RawCapture { info, image })
 }
@@ -364,11 +370,11 @@ fn raw_capture_monitor(id: u32) -> Result<RawCapture, XshotError> {
 ///
 /// # Errors
 ///
-/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
-/// - [`XshotError::CaptureFailed`] if any individual capture fails.
-fn raw_capture_all_monitors() -> Result<Vec<RawCapture>, XshotError> {
+/// - [`CapturaError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`CapturaError::CaptureFailed`] if any individual capture fails.
+fn raw_capture_all_monitors() -> Result<Vec<RawCapture>, CapturaError> {
     let monitors = xcap::Monitor::all()
-        .map_err(|e| XshotError::resource_unavailable(format!("failed to list monitors: {e}")))?;
+        .map_err(|e| CapturaError::resource_unavailable(format!("failed to list monitors: {e}")))?;
 
     debug!("capturing all {} monitor(s)", monitors.len());
 
@@ -380,7 +386,7 @@ fn raw_capture_all_monitors() -> Result<Vec<RawCapture>, XshotError> {
 
         let image = m
             .capture_image()
-            .map_err(|e| XshotError::capture_failed(format!("monitor {mid}: {e}")))?;
+            .map_err(|e| CapturaError::capture_failed(format!("monitor {mid}: {e}")))?;
 
         results.push(RawCapture { info, image });
     }
@@ -398,7 +404,7 @@ fn raw_capture_all_monitors() -> Result<Vec<RawCapture>, XshotError> {
 /// directly into the result via [`RgbaImage::into_raw()`] — zero encoding,
 /// zero copies.  For all other formats the pixels are encoded by the
 /// utility layer.
-fn encode_capture(raw: RawCapture, format: ImageFormat) -> Result<CaptureResult, XshotError> {
+fn encode_capture(raw: RawCapture, format: ImageFormat) -> Result<CaptureResult, CapturaError> {
     let width = raw.image.width();
     let height = raw.image.height();
 
@@ -429,7 +435,7 @@ fn encode_capture(raw: RawCapture, format: ImageFormat) -> Result<CaptureResult,
 fn encode_capture_base64(
     raw: RawCapture,
     format: ImageFormat,
-) -> Result<Base64CaptureResult, XshotError> {
+) -> Result<Base64CaptureResult, CapturaError> {
     let data = encode_rgba_base64(
         raw.image.as_raw(),
         raw.image.width(),
@@ -474,17 +480,17 @@ fn encode_capture_base64(
 ///
 /// # Errors
 ///
-/// - [`XshotError::MonitorNotFound`] if no monitor matches the `id`.
-/// - [`XshotError::CaptureFailed`] if the OS capture call fails.
-/// - [`XshotError::EncodingError`] if image encoding fails.
-/// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResult, XshotError> {
+/// - [`CapturaError::MonitorNotFound`] if no monitor matches the `id`.
+/// - [`CapturaError::CaptureFailed`] if the OS capture call fails.
+/// - [`CapturaError::EncodingError`] if image encoding fails.
+/// - [`CapturaError::InternalError`] if the blocking task panics.
+pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResult, CapturaError> {
     tokio::task::spawn_blocking(move || {
         let raw = raw_capture_monitor(id)?;
         encode_capture(raw, format)
     })
     .await
-    .map_err(|e| XshotError::internal(format!("capture task panicked: {e}")))?
+    .map_err(|e| CapturaError::internal(format!("capture task panicked: {e}")))?
 }
 
 /// Captures encoded screenshots of **every** connected monitor.
@@ -499,11 +505,11 @@ pub async fn capture_monitor(id: u32, format: ImageFormat) -> Result<CaptureResu
 ///
 /// # Errors
 ///
-/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
-/// - [`XshotError::CaptureFailed`] if any individual capture fails.
-/// - [`XshotError::EncodingError`] if image encoding fails.
-/// - [`XshotError::InternalError`] if the blocking task panics.
-pub async fn capture_all_monitors(format: ImageFormat) -> Result<Vec<CaptureResult>, XshotError> {
+/// - [`CapturaError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`CapturaError::CaptureFailed`] if any individual capture fails.
+/// - [`CapturaError::EncodingError`] if image encoding fails.
+/// - [`CapturaError::InternalError`] if the blocking task panics.
+pub async fn capture_all_monitors(format: ImageFormat) -> Result<Vec<CaptureResult>, CapturaError> {
     tokio::task::spawn_blocking(move || {
         let raws = raw_capture_all_monitors()?;
         let count = raws.len();
@@ -515,7 +521,7 @@ pub async fn capture_all_monitors(format: ImageFormat) -> Result<Vec<CaptureResu
         Ok(results)
     })
     .await
-    .map_err(|e| XshotError::internal(format!("capture-all task panicked: {e}")))?
+    .map_err(|e| CapturaError::internal(format!("capture-all task panicked: {e}")))?
 }
 
 /// Captures a screenshot of the monitor with the given `id` and returns
@@ -532,20 +538,20 @@ pub async fn capture_all_monitors(format: ImageFormat) -> Result<Vec<CaptureResu
 ///
 /// # Errors
 ///
-/// - [`XshotError::MonitorNotFound`] if no monitor matches the `id`.
-/// - [`XshotError::CaptureFailed`] if the OS capture call fails.
-/// - [`XshotError::EncodingError`] if image encoding fails.
-/// - [`XshotError::InternalError`] if the blocking task panics.
+/// - [`CapturaError::MonitorNotFound`] if no monitor matches the `id`.
+/// - [`CapturaError::CaptureFailed`] if the OS capture call fails.
+/// - [`CapturaError::EncodingError`] if image encoding fails.
+/// - [`CapturaError::InternalError`] if the blocking task panics.
 pub async fn capture_monitor_base64(
     id: u32,
     format: ImageFormat,
-) -> Result<Base64CaptureResult, XshotError> {
+) -> Result<Base64CaptureResult, CapturaError> {
     tokio::task::spawn_blocking(move || {
         let raw = raw_capture_monitor(id)?;
         encode_capture_base64(raw, format)
     })
     .await
-    .map_err(|e| XshotError::internal(format!("base64 capture task panicked: {e}")))?
+    .map_err(|e| CapturaError::internal(format!("base64 capture task panicked: {e}")))?
 }
 
 /// Captures Base64-encoded screenshots of **every** connected monitor.
@@ -560,13 +566,13 @@ pub async fn capture_monitor_base64(
 ///
 /// # Errors
 ///
-/// - [`XshotError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
-/// - [`XshotError::CaptureFailed`] if any individual capture fails.
-/// - [`XshotError::EncodingError`] if image encoding fails.
-/// - [`XshotError::InternalError`] if the blocking task panics.
+/// - [`CapturaError::ResourceUnavailable`] if `xcap::Monitor::all()` fails.
+/// - [`CapturaError::CaptureFailed`] if any individual capture fails.
+/// - [`CapturaError::EncodingError`] if image encoding fails.
+/// - [`CapturaError::InternalError`] if the blocking task panics.
 pub async fn capture_all_monitors_base64(
     format: ImageFormat,
-) -> Result<Vec<Base64CaptureResult>, XshotError> {
+) -> Result<Vec<Base64CaptureResult>, CapturaError> {
     tokio::task::spawn_blocking(move || {
         let raws = raw_capture_all_monitors()?;
         let count = raws.len();
@@ -578,7 +584,7 @@ pub async fn capture_all_monitors_base64(
         Ok(results)
     })
     .await
-    .map_err(|e| XshotError::internal(format!("base64 capture-all task panicked: {e}")))?
+    .map_err(|e| CapturaError::internal(format!("base64 capture-all task panicked: {e}")))?
 }
 
 // ---------------------------------------------------------------------------
