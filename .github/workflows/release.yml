@@ -967,10 +967,42 @@ jobs:
           name: npm-release-tarballs
           path: dist
 
+      - name: Verify GitHub release tarballs
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          expected=(
+            xshot-darwin-x64
+            xshot-darwin-arm64
+            xshot-win32-x64-msvc
+            xshot-win32-arm64-msvc
+            xshot-linux-x64-gnu
+            xshot-linux-arm64-gnu
+            xshot-linux-x64-musl
+            xshot-linux-arm64-musl
+            xshot
+          )
+
+          mapfile -t actual < <(find dist -maxdepth 1 -type f -name '*.tgz' -printf '%f\n' | sort)
+          mapfile -t wanted < <(printf '%s\n' "${expected[@]}" | sed "s/$/-${VERSION}.tgz/" | sort)
+
+          if [[ "${actual[*]}" != "${wanted[*]}" ]]; then
+            echo "GitHub release tarballs do not match expected set." >&2
+            echo "Expected:" >&2
+            printf '  %s\n' "${wanted[@]}" >&2
+            echo "Actual:" >&2
+            printf '  %s\n' "${actual[@]}" >&2
+            exit 1
+          fi
+
       - name: Create or update GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail

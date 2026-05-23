@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Passed the generated root package entrypoints into release packaging so clean
   release jobs pack `index.js` and `index.d.ts` instead of publishing an
   unusable root tarball.
+- Gave the release creation job an explicit GitHub CLI repository context and a
+  final exact-tarball check before uploading npm assets to the GitHub release.
 - Skipped NAPI-RS optional package publishing during release package metadata
   finalization so unauthenticated packaging jobs do not call `npm publish`.
 - Pinned Windows x64 CI and release jobs to GitHub's `windows-2025-vs2026`

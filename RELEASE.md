@@ -552,7 +552,9 @@ the workflow stops here and no GitHub release is created or updated.
 ### `github-release`
 
 Creates or updates the GitHub release for the tag and uploads all nine release
-tarballs.
+tarballs. The job re-validates the exact tarball set before touching the release
+and passes `GH_REPO` explicitly so the GitHub CLI does not depend on a local git
+checkout to infer the repository.
 
 ---
 
