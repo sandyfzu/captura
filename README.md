@@ -1,38 +1,356 @@
 # xshot
 
 [![CI](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml/badge.svg)](https://github.com/sandyfzu/xshot/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/xshot.svg)](https://www.npmjs.com/package/xshot)
+[![Node.js version](https://img.shields.io/node/v/xshot.svg)](https://www.npmjs.com/package/xshot)
+[![TypeScript types](https://img.shields.io/badge/types-included-blue.svg)](index.d.ts)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Cross-platform screen capture for Node.js — a high-performance native module built with [Rust](https://www.rust-lang.org/) and a fully typed async TypeScript API.
+Cross-platform screen capture for Node.js: native Rust performance, prebuilt
+npm binaries, and a fully typed async TypeScript API.
 
 ## Features
 
-- **Cross-platform** — macOS (x64, arm64), Windows (x64, arm64), Linux (x64, arm64 — glibc and musl)
-- **Async/Promise-based** — every function returns a `Promise` and never blocks the Node.js event loop
-- **Fully typed** — auto-generated TypeScript definitions with rich JSDoc documentation
-- **Multi-format** — Raw (unencoded RGBA), PNG (default), JPEG, WebP, and AVIF output
-- **Buffer & Base64** — get screenshots as a Node.js `Buffer` or a Base64 string
-- **Physical & logical coordinates** — monitor metadata exposes both pixel-exact and DIP geometry
+- **Cross-platform prebuilds** - macOS, Windows, Linux glibc, and Linux musl
+  on x64 and arm64.
+- **Promise-based API** - every public function returns a `Promise`; capture
+  and encoding work is offloaded from the Node.js main thread.
+- **TypeScript-first** - generated `.d.ts` declarations with JSDoc ship in the
+  npm package.
+- **Multiple output formats** - Raw RGBA, PNG, JPEG, WebP, and AVIF.
+- **Buffer or Base64 output** - use a Node.js `Buffer` for files and pipelines,
+  or an RFC 4648 Base64 string for JSON and data URIs.
+- **Normalized monitor metadata** - each monitor exposes physical pixels and
+  logical/DIP coordinates.
 
-## Requirements
+## Supported Platforms
 
-- **Node.js** >= 20.3.0 (N-API 9)
+`xshot` requires **Node.js >= 20.3.0** because it targets N-API 9.
 
-### Linux native dependencies
+| Platform | Architectures | Native packages | Notes |
+| --- | --- | --- | --- |
+| macOS | x64, arm64 | `xshot-darwin-x64`, `xshot-darwin-arm64` | Screen Recording permission is required. |
+| Windows | x64, arm64 | `xshot-win32-x64-msvc`, `xshot-win32-arm64-msvc` | No special OS permission is normally required. |
+| Linux glibc | x64, arm64 | `xshot-linux-x64-gnu`, `xshot-linux-arm64-gnu` | Built and release-smoke-tested on Ubuntu 24.04. |
+| Linux musl | x64, arm64 | `xshot-linux-x64-musl`, `xshot-linux-arm64-musl` | Built and smoke-tested on Alpine/musl. |
+
+The root `xshot` package loads the matching native package for the current
+platform. Keep optional dependencies enabled in your package manager; installing
+with `--omit=optional`, `--no-optional`, or an equivalent setting prevents the
+native binding from being installed.
+
+## Installation
+
+```bash
+npm install xshot
+```
+
+Use it from ESM/TypeScript:
+
+```ts
+import { getMonitors, captureMonitor } from 'xshot'
+```
+
+Or from CommonJS:
+
+```js
+const { getMonitors, captureMonitor } = require('xshot')
+```
+
+## Quick Start
+
+```ts
+import { writeFile } from 'node:fs/promises'
+import { getMonitors, captureMonitor } from 'xshot'
+
+const monitors = await getMonitors()
+const monitor = monitors.find((m) => m.isPrimary) ?? monitors[0]
+
+if (!monitor) {
+  throw new Error('No monitors available')
+}
+
+const result = await captureMonitor(monitor.id)
+
+await writeFile('screenshot.png', result.screenshot.data)
+console.log(
+  `Captured ${monitor.friendlyName}: ${result.screenshot.size.width}x${result.screenshot.size.height}`,
+)
+```
+
+Monitor IDs are assigned by the operating system and may change between
+sessions. Discover monitors first, then pass the returned `id` to capture or
+lookup functions.
+
+## Recipes
+
+### List Monitors
+
+```ts
+const monitors = await getMonitors()
+
+for (const monitor of monitors) {
+  const { width, height } = monitor.physical
+  console.log(`${monitor.id}: ${monitor.friendlyName} (${width}x${height})`)
+}
+```
+
+### Get A Specific Monitor
+
+```ts
+const [firstMonitor] = await getMonitors()
+
+if (firstMonitor) {
+  const monitor = await getMonitorById(firstMonitor.id)
+  console.log(monitor.friendlyName)
+}
+```
+
+`getMonitorById(id)` throws a `[MONITOR_NOT_FOUND]` error when the monitor does
+not exist.
+
+### Capture Encoded Images
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+const [monitor] = await getMonitors()
+
+if (monitor) {
+  const png = await captureMonitor(monitor.id) // PNG is the default
+  await writeFile(`monitor-${monitor.id}.png`, png.screenshot.data)
+
+  const jpg = await captureMonitor(monitor.id, 'Jpeg')
+  await writeFile(`monitor-${monitor.id}.jpg`, jpg.screenshot.data)
+}
+```
+
+### Capture Raw RGBA Pixels
+
+```ts
+const [monitor] = await getMonitors()
+
+if (monitor) {
+  const raw = await captureMonitor(monitor.id, 'Raw')
+  const { width, height } = raw.screenshot.size
+
+  console.log(raw.screenshot.format) // 'Raw'
+  console.log(raw.screenshot.data.byteLength === width * height * 4) // true
+}
+```
+
+Raw output skips image encoding entirely. The buffer layout is RGBA8, 4 bytes
+per pixel, row-major, from top-left to bottom-right. Use it when you want to
+process pixels yourself with libraries such as `sharp`, `node-canvas`, WebGL,
+or a custom encoder.
+
+### Capture All Monitors
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+const results = await captureAllMonitors()
+
+for (const result of results) {
+  await writeFile(`monitor-${result.monitor.id}.png`, result.screenshot.data)
+}
+```
+
+### Capture Base64
+
+```ts
+const [monitor] = await getMonitors()
+
+if (monitor) {
+  const result = await captureMonitorBase64(monitor.id, 'Png')
+  const dataUri = `data:image/png;base64,${result.screenshot.data}`
+}
+
+const allAvif = await captureAllMonitorsBase64('Avif')
+```
+
+`'Raw'` is not supported by `captureMonitorBase64()` or
+`captureAllMonitorsBase64()` because raw pixel data is not self-describing.
+Passing `'Raw'` to either Base64 function throws `[INVALID_ARGUMENT]`.
+
+## API
+
+All public functions are async and return promises.
+
+| Function | Returns | Description |
+| --- | --- | --- |
+| `getMonitors()` | `Promise<Monitor[]>` | Metadata for all connected monitors. |
+| `getMonitorById(id)` | `Promise<Monitor>` | Metadata for one monitor; throws `[MONITOR_NOT_FOUND]` if missing. |
+| `captureMonitor(id, format?)` | `Promise<CaptureResult>` | Screenshot from one monitor as a `Buffer`. |
+| `captureAllMonitors(format?)` | `Promise<CaptureResult[]>` | Screenshots from every monitor as `Buffer`s. |
+| `captureMonitorBase64(id, format?)` | `Promise<Base64CaptureResult>` | Screenshot from one monitor as a Base64 string. |
+| `captureAllMonitorsBase64(format?)` | `Promise<Base64CaptureResult[]>` | Screenshots from every monitor as Base64 strings. |
+
+### Image Formats
+
+The optional `format` parameter is case-insensitive. Canonical return values are
+`'Raw'`, `'Png'`, `'Jpeg'`, `'WebP'`, and `'Avif'`; `'Jpg'` is accepted as an
+alias for `'Jpeg'`.
+
+| Value | MIME type | Notes |
+| --- | --- | --- |
+| `'Raw'` | `application/octet-stream` | Unencoded RGBA8 pixels. Fastest path. Not supported by Base64 functions. |
+| `'Png'` | `image/png` | Default. Lossless and pixel-perfect. |
+| `'Jpeg'` / `'Jpg'` | `image/jpeg` | Lossy, using default encoder settings. |
+| `'WebP'` | `image/webp` | Lossless WebP. |
+| `'Avif'` | `image/avif` | Default encoder speed and quality. Usually the slowest built-in encoder. |
+
+### Types
+
+The package ships complete declarations in [index.d.ts](index.d.ts). The core
+runtime shapes are:
+
+```ts
+type ImageFormat = 'Raw' | 'Png' | 'Jpeg' | 'WebP' | 'Avif'
+
+interface Monitor {
+  id: number
+  name: string
+  friendlyName: string
+  physical: Bounds
+  logical: Bounds
+  rotation: number
+  scaleFactor: number
+  frequency: number
+  isPrimary: boolean
+  isBuiltin: boolean
+}
+
+interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface Size {
+  width: number
+  height: number
+}
+
+interface CaptureResult {
+  monitor: Monitor
+  screenshot: Screenshot
+}
+
+interface Screenshot {
+  size: Size
+  format: ImageFormat
+  data: Buffer
+}
+
+interface Base64CaptureResult {
+  monitor: Monitor
+  screenshot: Base64Screenshot
+}
+
+interface Base64Screenshot {
+  size: Size
+  format: ImageFormat // Runtime value is never 'Raw'.
+  data: string
+}
+```
+
+### Coordinates
+
+`Monitor.physical` is the pixel-exact monitor geometry. Captured screenshot
+dimensions always match `monitor.physical.width` and
+`monitor.physical.height` for full-monitor captures.
+
+`Monitor.logical` is the OS/window-manager coordinate space in logical pixels,
+DIPs, or CSS points. Use it for UI layout and pointer/window positioning.
+
+`scaleFactor` relates the two coordinate spaces:
+
+```ts
+physical = logical * scaleFactor
+logical = physical / scaleFactor
+```
+
+Monitor `x` and `y` values can be negative when a secondary display is arranged
+above or to the left of the primary display.
+
+## Error Handling
+
+All failures are surfaced as JavaScript `Error` objects. The stable xshot domain
+code is embedded at the start of `err.message` as a `[CODE]` prefix:
+
+```ts
+try {
+  await captureMonitor(999999)
+} catch (err) {
+  if (err instanceof Error && err.message.startsWith('[MONITOR_NOT_FOUND]')) {
+    // The monitor id is not available anymore.
+  }
+}
+```
+
+Do not rely on `err.code` for xshot domain matching in the current async API.
+With napi-rs v3 promise rejections, `err.code` is reserved for the N-API status
+code; xshot keeps the domain code in the message prefix.
+
+| Error code | Description |
+| --- | --- |
+| `INITIALIZATION_ERROR` | Failure during module or runtime initialization. |
+| `MONITOR_NOT_FOUND` | Requested monitor ID does not exist. |
+| `CAPTURE_FAILED` | Screenshot operation failed. |
+| `PERMISSION_DENIED` | Explicitly detected OS screen-capture permission denial (Depending on the OS this error may never occur, since some OS can make this fail silently or simply return a blank image). |
+| `PLATFORM_NOT_SUPPORTED` | Feature unavailable on this OS. |
+| `ENCODING_ERROR` | Image encoding failure. |
+| `INVALID_ARGUMENT` | Invalid parameter, such as an unsupported format string. |
+| `INTERNAL_ERROR` | Unexpected internal failure. |
+| `TIMEOUT_ERROR` | Operation exceeded time bounds. |
+| `RESOURCE_UNAVAILABLE` | OS resource became unavailable. |
+
+## Performance Notes
+
+Capture and encoding work is offloaded from the Node.js main thread. xshot does
+not impose a global concurrency limit across independent capture calls;
+applications that start many high-resolution encoded captures at the same time
+should decide their own queueing and backpressure policy based on workload,
+latency target, and host CPU budget.
+
+`captureAllMonitors()` and `captureAllMonitorsBase64()` capture monitors
+sequentially inside one request to reduce contention in the OS capture
+subsystem.
+
+Use `'Raw'` when you need the fastest path and plan to process or encode pixels
+with your own pipeline. Use PNG/JPEG/WebP/AVIF when you need ready-to-write
+image files.
+
+## Platform Notes
+
+- **macOS** - Screen Recording permission is required. If the OS or capture
+  layer reports a distinguishable permission denial, xshot surfaces
+  `[PERMISSION_DENIED]`; otherwise the failed capture is reported as
+  `[CAPTURE_FAILED]` with platform error text in the message.
+- **Linux** - X11 and Wayland are supported, subject to the compositor and
+  desktop portal environment. Minimal images and containers may need native
+  runtime libraries installed before the addon can load.
+- **Windows** - No special screen-capture permission is normally required.
+- **Headless environments** - Systems without an available display may return
+  no monitors or fail capture with a structured error.
+
+## Linux Native Dependencies
 
 xshot uses native X11, Wayland, PipeWire, D-Bus, EGL, and GBM libraries on
-Linux. Desktop Ubuntu installations usually include many of these libraries
-already, but minimal images and containers may need them installed before the
-native addon can load or before Wayland capture can talk to the desktop portal
-services.
+Linux. Desktop Ubuntu installations usually include many runtime libraries
+already, but minimal images and containers often need additional packages.
 
-The published GNU/Linux glibc prebuilt packages are built and release-smoke-tested
-on Ubuntu 24.04. Ubuntu 24.04 is the supported prebuilt GNU/Linux baseline for
-the current capture stack because the Rust PipeWire bindings compile against
-PipeWire/libspa headers newer than Ubuntu 22.04's package set. Older glibc
-distributions may require their own build with compatible PipeWire development
-headers or an xshot version whose dependency graph supports that distribution.
+The published GNU/Linux glibc prebuilt packages are built and release-smoke-
+tested on Ubuntu 24.04. Ubuntu 24.04 is the supported prebuilt GNU/Linux
+baseline for the current capture stack because the Rust PipeWire bindings
+compile against PipeWire/libspa headers newer than Ubuntu 22.04's package set.
+Older glibc distributions may require their own build with compatible PipeWire
+development headers or an xshot version whose dependency graph supports that
+distribution.
 
-For Ubuntu 24.04 runtime installations, install:
+For Ubuntu 24.04 runtime installations:
 
 ```bash
 sudo apt-get update
@@ -45,8 +363,8 @@ sudo apt-get install -y \
 
 Ubuntu 24.04 uses the `libpipewire-0.3-0t64` runtime package name.
 
-If you are building xshot from source or rebuilding the native addon on Ubuntu
-24.04, install the development headers too:
+If you build xshot from source or rebuild the native addon on Ubuntu 24.04,
+install development headers too:
 
 ```bash
 sudo apt-get update
@@ -55,18 +373,17 @@ sudo apt-get install -y pkg-config libclang-dev \
   libpipewire-0.3-dev libwayland-dev libegl-dev libgbm-dev
 ```
 
-These package lists follow the capture stack's Linux build requirements, with
-GBM included because xshot's Wayland capture layer requires it.
-
-#### Building for an unsupported Linux target
+### Unsupported Linux Targets
 
 If the prebuilt GNU or musl package cannot load on your distribution, build the
 native addon on that target system so it links against that system's libc and
 desktop capture libraries. You need Node.js 20.3.0 or newer, Rust, and
-PipeWire/libspa development headers compatible with the current Rust capture
-dependencies. The published npm package is prebuilt-only and does not include
-the Rust source, so source builds start from the repository tag that matches the
-package version you want to run:
+PipeWire/libspa development headers compatible with the current capture
+dependencies.
+
+The published npm package is prebuilt-only and does not include Rust source, so
+source builds start from the repository tag that matches the package version you
+want to run:
 
 ```bash
 git clone https://github.com/sandyfzu/xshot.git
@@ -84,232 +401,26 @@ export NAPI_RS_NATIVE_LIBRARY_PATH="/absolute/path/to/xshot.linux-x64-gnu.node"
 node -e "const xshot = require('xshot'); console.log(Object.keys(xshot))"
 ```
 
-Use the `.node` file produced for your actual platform and architecture, such as
-`xshot.linux-arm64-gnu.node` on Linux ARM64 glibc or `xshot.linux-x64-musl.node`
-on Alpine x64.
+Use the `.node` file produced for your actual platform and architecture, such
+as `xshot.linux-arm64-gnu.node` on Linux ARM64 glibc or
+`xshot.linux-x64-musl.node` on Alpine x64.
 
-## Installation
+## Development
 
 ```bash
-npm install xshot
+npm ci
+npm run build
+npm test
+npm run typecheck
+cargo test --workspace --locked
 ```
 
-Maintainers preparing a release should follow the native package checklist in
-[RELEASE.md](RELEASE.md). The published package must include the generated
-platform packages expected by the NAPI-RS loader.
+Maintainers preparing a release should follow [RELEASE.md](RELEASE.md). The
+release workflow builds all eight native targets, generates the platform npm
+packages, validates tarballs, smoke-tests installs, and publishes with npm
+Trusted Publishing.
 
-## Quick Start
-
-```ts
-import {
-  getMonitors,
-  getMonitorById,
-  captureMonitor,
-  captureAllMonitors,
-  captureMonitorBase64,
-  captureAllMonitorsBase64,
-} from 'xshot'
-```
-
-### List monitors
-
-```ts
-const monitors = await getMonitors()
-
-for (const m of monitors) {
-  console.log(`${m.id}: ${m.friendlyName} (${m.physical.width}×${m.physical.height})`)
-}
-```
-
-### Get a specific monitor
-
-```ts
-const monitor = await getMonitorById(1) // throws MONITOR_NOT_FOUND if invalid
-```
-
-### Capture a screenshot (Buffer)
-
-```ts
-import { writeFileSync } from 'node:fs'
-
-// Default format — PNG
-const result = await captureMonitor(1)
-writeFileSync('screenshot.png', result.screenshot.data)
-
-// Explicit format
-const jpg = await captureMonitor(1, 'Jpeg')
-writeFileSync('screenshot.jpg', jpg.screenshot.data)
-```
-
-### Capture raw RGBA pixels (fastest)
-
-```ts
-// 'Raw' skips image encoding entirely — it returns the RGBA8 pixel
-// buffer with no compression, making it significantly faster than any
-// encoded format. Use it when you plan to process the pixels yourself.
-const raw = await captureMonitor(1, 'Raw')
-const { width, height } = raw.screenshot.size
-
-// Buffer layout: 4 bytes per pixel (R, G, B, A), row-major.
-// Length is always width × height × 4.
-console.log(`${width}×${height} — ${raw.screenshot.data.length} bytes`)
-
-// Feed into sharp, node-canvas, WebGL textures, or re-encode
-// with your own quality/format settings.
-```
-
-### Capture all monitors
-
-```ts
-const results = await captureAllMonitors()
-
-for (const r of results) {
-  writeFileSync(`${r.monitor.friendlyName}.png`, r.screenshot.data)
-}
-```
-
-### Capture as Base64
-
-```ts
-const b64 = await captureMonitorBase64(1)
-const dataUri = `data:image/png;base64,${b64.screenshot.data}`
-
-// All monitors
-const all = await captureAllMonitorsBase64('Avif')
-```
-
-## API
-
-### Functions
-
-| Function | Returns | Description |
-| --- | --- | --- |
-| `getMonitors()` | `Promise<Monitor[]>` | Metadata for all connected monitors |
-| `getMonitorById(id)` | `Promise<Monitor>` | Metadata for a single monitor (throws `MONITOR_NOT_FOUND`) |
-| `captureMonitor(id, format?)` | `Promise<CaptureResult>` | Screenshot as a `Buffer` |
-| `captureAllMonitors(format?)` | `Promise<CaptureResult[]>` | Screenshots of every monitor |
-| `captureMonitorBase64(id, format?)` | `Promise<Base64CaptureResult>` | Screenshot as a Base64 string |
-| `captureAllMonitorsBase64(format?)` | `Promise<Base64CaptureResult[]>` | Base64 screenshots of every monitor |
-
-### Image Formats
-
-The optional `format` parameter accepts (case-insensitive):
-
-| Value | MIME Type | Notes |
-| --- | --- | --- |
-| `'Raw'` | `application/octet-stream` | Unencoded RGBA8 pixels. **Fastest** — skips compression entirely. Not supported for Base64 functions. |
-| `'Png'` | `image/png` | **Default.** Lossless, pixel-perfect. |
-| `'Jpeg'` / `'Jpg'` | `image/jpeg` | Lossy, default quality. |
-| `'WebP'` | `image/webp` | Lossless only. |
-| `'Avif'` | `image/avif` | Default speed and quality. Usually the slowest built-in encoder. |
-
-> **Note:** Passing `'Raw'` to `captureMonitorBase64()` or `captureAllMonitorsBase64()` throws an `INVALID_ARGUMENT` error. Raw pixel data is not self-describing and cannot be used in data URIs.
-
-### Types
-
-```ts
-interface Monitor {
-  id: number
-  name: string             // System device name
-  friendlyName: string     // Human-readable name
-  physical: Bounds         // Geometry in physical pixels
-  logical: Bounds          // Geometry in logical/DIP units
-  rotation: number
-  scaleFactor: number
-  frequency: number
-  isPrimary: boolean
-  isBuiltin: boolean
-}
-
-interface Bounds {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-interface CaptureResult {
-  monitor: Monitor
-  screenshot: Screenshot
-}
-
-interface Screenshot {
-  size: Size
-  format: ImageFormat      // 'Raw' | 'Png' | 'Jpeg' | 'WebP' | 'Avif'
-  data: Buffer             // Raw RGBA8 pixels (format === 'Raw') or encoded image bytes
-}
-
-interface Base64CaptureResult {
-  monitor: Monitor
-  screenshot: Base64Screenshot
-}
-
-interface Base64Screenshot {
-  size: Size
-  format: ImageFormat
-  data: string             // RFC 4648 Base64-encoded image
-}
-
-interface Size {
-  width: number
-  height: number
-}
-```
-
-### Performance Notes
-
-Capture and encoding work is offloaded from the Node.js main thread. xshot does
-not impose a global concurrency limit across independent calls: applications
-that start many high-resolution encoded captures at the same time should decide
-their own queueing/backpressure policy based on their workload, latency target,
-and host CPU budget. Use `'Raw'` when you need to process or encode pixels with
-your own pipeline.
-
-`captureAllMonitors()` and `captureAllMonitorsBase64()` capture monitors
-sequentially inside one request to avoid unnecessary contention in the OS capture
-subsystem.
-
-### Error Handling
-
-All failures are surfaced as JavaScript `Error` objects. The stable xshot domain
-code is embedded at the start of `err.message` as a `[CODE]` prefix:
-
-```ts
-try {
-  await captureMonitor(999)
-} catch (err) {
-  if (err instanceof Error && err.message.startsWith('[MONITOR_NOT_FOUND]')) {
-    // handle missing monitor
-  }
-}
-```
-
-Do not rely on `err.code` for xshot domain matching in the current async API.
-NAPI-RS v3 promise rejections expose the NAPI status code there; xshot keeps the
-domain code in the message prefix so it remains visible and testable across all
-async exports.
-
-| Error Code | Description |
-| --- | --- |
-| `INITIALIZATION_ERROR` | Failure during module initialisation |
-| `MONITOR_NOT_FOUND` | Requested monitor ID does not exist |
-| `CAPTURE_FAILED` | Screenshot operation failed |
-| `PERMISSION_DENIED` | Explicitly detected OS screen-capture permission denial |
-| `PLATFORM_NOT_SUPPORTED` | Feature unavailable on this OS |
-| `ENCODING_ERROR` | Image encoding failure |
-| `INVALID_ARGUMENT` | Invalid parameter (e.g. bad format string) |
-| `INTERNAL_ERROR` | Unexpected internal failure |
-| `TIMEOUT_ERROR` | Operation exceeded time bounds |
-| `RESOURCE_UNAVAILABLE` | OS resource became unavailable |
-
-## Platform Notes
-
-- **macOS** — Screen recording permission is required. If the OS or upstream
-  capture layer reports a distinguishable permission denial, xshot surfaces
-  `PERMISSION_DENIED`; otherwise the failed capture is reported as
-  `CAPTURE_FAILED` with the platform error text in the message.
-- **Linux** — Supports X11 and Wayland. Some Wayland compositors may have limited support.
-- **Windows** — No special permissions required.
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
