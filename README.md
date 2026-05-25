@@ -278,16 +278,40 @@ above or to the left of the primary display.
 ## Error Handling
 
 All failures are surfaced as JavaScript `Error` objects. The stable captura domain
-code is embedded at the start of `err.message` as a `[CODE]` prefix:
+code is embedded at the start of `err.message` as a `[CODE]` prefix.
+
+The recommended way to recognise captura errors is the dedicated helper
+exported from the `captura/errors` subpath. It parses the prefix **and**
+validates it against the canonical `CapturaErrorCode` enum exposed by the
+native binding, so a positive match is strong evidence the error actually
+originated in captura — a third-party error that happens to use a `[FOO]`
+prefix will not be misclassified:
 
 ```ts
+import { captureMonitor, getMonitorById } from 'captura'
+import { isCapturaError, CapturaErrorCode } from 'captura/errors'
+
 try {
-  await captureMonitor(999999)
+  await getMonitorById(999999)
 } catch (err) {
-  if (err instanceof Error && err.message.startsWith('[MONITOR_NOT_FOUND]')) {
+  if (isCapturaError(err, CapturaErrorCode.MonitorNotFound)) {
     // The monitor id is not available anymore.
+  } else if (isCapturaError(err)) {
+    // Any other captura-originated error.
+  } else {
+    throw err
   }
 }
+```
+
+`getCapturaErrorCode(err)` returns the `[CODE]` string when `err` is a
+captura-originated error, or `undefined` otherwise — useful for logging or
+switch-style dispatch:
+
+```ts
+import { getCapturaErrorCode } from 'captura/errors'
+
+const code = getCapturaErrorCode(err) // e.g. 'MONITOR_NOT_FOUND' or undefined
 ```
 
 Do not rely on `err.code` for captura domain matching in the current async API.

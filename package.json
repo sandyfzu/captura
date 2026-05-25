@@ -22,6 +22,19 @@
   },
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./errors": {
+      "types": "./errors.d.ts",
+      "import": "./errors.mjs",
+      "require": "./errors.js",
+      "default": "./errors.js"
+    },
+    "./package.json": "./package.json"
+  },
   "napi": {
     "binaryName": "captura",
     "targets": [
@@ -62,8 +75,10 @@
   "files": [
     "index.js",
     "index.d.ts",
-    "CHANGELOG.md",
-    "RELEASE.md"
+    "errors.js",
+    "errors.mjs",
+    "errors.d.ts",
+    "CHANGELOG.md"
   ],
   "lint-staged": {
     "*.rs": "rustfmt"

@@ -29,6 +29,11 @@ import type {
   CaptureResult,
   Base64CaptureResult,
 } from '../index.js'
+import {
+  CapturaErrorCode,
+  getCapturaErrorCode,
+  isCapturaError,
+} from '../errors.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -45,19 +50,33 @@ const EXPECTED_EXPORTS: ReadonlyMap<string, unknown> = new Map<string, unknown>(
 ])
 
 /**
- * Asserts that {@link err} is an `Error` whose `message` contains the
- * given `[CODE]` prefix. Returns `true` so it can be used as an
- * `assert.rejects` validator.
+ * Asserts that `err` is a captura-originated error tagged with `code`.
  *
- * napi-rs v3 hardcodes the JS `err.code` to `"GenericFailure"` for async
- * promise rejections, so the domain error code is embedded in the message
- * as a `[CODE]` prefix instead.
+ * Uses {@link isCapturaError} (which validates the parsed `[CODE]` prefix
+ * against the canonical `CapturaErrorCode` enum from the native binding)
+ * rather than a plain string match — so the assertion would fail if some
+ * unrelated library happened to throw an `Error` with a matching prefix.
  */
-function assertErrorCode(err: unknown, code: string): true {
+function assertCapturaError(err: unknown, code: CapturaErrorCode): true {
   assert.ok(err instanceof Error, `Expected an Error, got ${typeof err}`)
   assert.ok(
-    err.message.includes(code),
-    `Expected err.message to contain "${code}", got: "${err.message}"`,
+    isCapturaError(err, code),
+    `Expected a captura ${code} error, got: "${err.message}" ` +
+      `(parsed code: ${String(getCapturaErrorCode(err))})`,
+  )
+  return true
+}
+
+/**
+ * Pins the wire-level `[CODE]` message prefix as a regression guard. The
+ * helper-based check above is the recommended consumer API, but the prefix
+ * is itself a public contract documented in README.md / AGENTS.md.
+ */
+function assertWirePrefix(err: unknown, code: CapturaErrorCode): true {
+  assert.ok(err instanceof Error)
+  assert.ok(
+    err.message.startsWith(`[${code}]`),
+    `Expected message to start with [${code}], got: "${err.message}"`,
   )
   return true
 }
@@ -112,49 +131,56 @@ describe('error handling', () => {
     it('captureMonitor with invalid format', async () => {
       await assert.rejects(
         () => captureMonitor(1, 'bmp'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
       )
     })
 
     it('captureAllMonitors with invalid format', async () => {
       await assert.rejects(
         () => captureAllMonitors('tiff'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
       )
     })
 
     it('captureMonitorBase64 with invalid format', async () => {
       await assert.rejects(
         () => captureMonitorBase64(1, 'gif'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
       )
     })
 
     it('captureAllMonitorsBase64 with invalid format', async () => {
       await assert.rejects(
         () => captureAllMonitorsBase64('targa'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
       )
     })
 
     it('captureAllMonitorsBase64 with Raw format', async () => {
       await assert.rejects(
         () => captureAllMonitorsBase64('Raw'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
       )
     })
 
     it('captureMonitorBase64 with Raw format', async () => {
       await assert.rejects(
         () => captureMonitorBase64(1, 'Raw'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
       )
     })
 
     it('captureAllMonitorsBase64 with lowercase raw', async () => {
       await assert.rejects(
         () => captureAllMonitorsBase64('raw'),
-        (err: unknown) => assertErrorCode(err, '[INVALID_ARGUMENT]'),
+        (err: unknown) => assertCapturaError(err, CapturaErrorCode.InvalidArgument),
+      )
+    })
+
+    it('also pins the [CODE] wire-format prefix', async () => {
+      await assert.rejects(
+        () => captureMonitor(1, 'bmp'),
+        (err: unknown) => assertWirePrefix(err, CapturaErrorCode.InvalidArgument),
       )
     })
   })
@@ -164,6 +190,90 @@ describe('error handling', () => {
     assert.ok(result instanceof Promise, 'getMonitors() must return a Promise')
     // Suppress unhandled rejection in headless environments.
     void (result as Promise<unknown>).catch(() => {})
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 2b. Error helpers — captura/errors public API
+// ---------------------------------------------------------------------------
+
+describe('captura/errors helpers', () => {
+  it('CapturaErrorCode exposes every documented category', () => {
+    const expected = [
+      'INITIALIZATION_ERROR',
+      'MONITOR_NOT_FOUND',
+      'CAPTURE_FAILED',
+      'PERMISSION_DENIED',
+      'PLATFORM_NOT_SUPPORTED',
+      'ENCODING_ERROR',
+      'INVALID_ARGUMENT',
+      'INTERNAL_ERROR',
+      'TIMEOUT_ERROR',
+      'RESOURCE_UNAVAILABLE',
+    ]
+    const actual = new Set<string>()
+    for (const key of Object.getOwnPropertyNames(CapturaErrorCode)) {
+      const value = (CapturaErrorCode as Record<string, unknown>)[key]
+      if (typeof value === 'string') actual.add(value)
+    }
+    for (const code of expected) {
+      assert.ok(actual.has(code), `Missing CapturaErrorCode wire value: ${code}`)
+    }
+  })
+
+  it('isCapturaError detects a real captura rejection', async () => {
+    await assert.rejects(
+      () => captureMonitor(1, 'bmp'),
+      (err: unknown) => {
+        assert.ok(isCapturaError(err), 'must recognize captura errors')
+        assert.ok(isCapturaError(err, CapturaErrorCode.InvalidArgument))
+        assert.equal(
+          getCapturaErrorCode(err),
+          CapturaErrorCode.InvalidArgument,
+        )
+        return true
+      },
+    )
+  })
+
+  it('isCapturaError rejects errors without a [CODE] prefix', () => {
+    const plain = new Error('plain error with no prefix')
+    assert.equal(isCapturaError(plain), false)
+    assert.equal(getCapturaErrorCode(plain), undefined)
+  })
+
+  it('isCapturaError rejects unknown [CODE] prefixes (spoof guard)', () => {
+    // Validates the core robustness requirement: a third-party error that
+    // happens to use a [FOO] prefix MUST NOT be classified as captura.
+    const spoof = new Error('[NOT_A_CAPTURA_CODE] spoofed message')
+    assert.equal(isCapturaError(spoof), false)
+    assert.equal(
+      getCapturaErrorCode(spoof),
+      undefined,
+      'unknown prefixes must not parse as a captura code',
+    )
+  })
+
+  it('isCapturaError rejects non-Error inputs', () => {
+    assert.equal(isCapturaError(undefined), false)
+    assert.equal(isCapturaError(null), false)
+    assert.equal(isCapturaError('[INVALID_ARGUMENT] string not error'), false)
+    assert.equal(isCapturaError({ message: '[INVALID_ARGUMENT] plain obj' }), false)
+  })
+
+  it('isCapturaError narrows the type with the code parameter', async () => {
+    await assert.rejects(
+      () => getMonitorById(0xfffffff),
+      (err: unknown) => {
+        // Wrong code must NOT match even though err is a captura error.
+        assert.equal(
+          isCapturaError(err, CapturaErrorCode.InvalidArgument),
+          false,
+        )
+        assert.ok(isCapturaError(err, CapturaErrorCode.MonitorNotFound))
+        return true
+      },
+    )
   })
 })
 
@@ -246,7 +356,7 @@ describe('live capture', async () => {
 
     await assert.rejects(
       () => getMonitorById(0xfffffff),
-      (err: unknown) => assertErrorCode(err, '[MONITOR_NOT_FOUND]'),
+      (err: unknown) => assertCapturaError(err, CapturaErrorCode.MonitorNotFound),
     )
   })
 

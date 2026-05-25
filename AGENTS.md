@@ -130,18 +130,42 @@ Additional categories should be added when they make semantic sense for the doma
 
 ### Public Error Contract
 
-The stable JavaScript contract is `[CODE]` at the beginning of `err.message`.
+The stable JavaScript contracts are:
+
+1. **Wire-level**: `err.message` always starts with `[CODE]` where `CODE` is
+   one of the canonical captura categories. This is what crosses the FFI
+   boundary and what every test pins.
+2. **Helper-level (recommended for consumers)**: the `captura/errors` subpath
+   exports `isCapturaError`, `getCapturaErrorCode`, and `CapturaErrorCode`.
+   The helpers parse the `[CODE]` prefix **and** validate it against the
+   canonical `CapturaErrorCode` enum exported from the native binding, so a
+   third-party error that happens to use a `[FOO]` prefix is not
+   misclassified.
+
 Do not document custom `err.code` matching unless the interop layer and
 integration tests are changed to prove that custom domain codes survive async
-promise rejections.
+promise rejections. With napi-rs v3, `err.code` is reserved for the N-API
+status string (typically `"GenericFailure"`).
 
 Required actions:
 
-1. Keep README examples aligned with the message-prefix contract.
+1. Keep README examples aligned with both the helper-based and message-prefix
+   contracts. The helper is the recommended path; the prefix is the
+   underlying contract that the helper relies on.
 2. Keep integration tests checking `[INVALID_ARGUMENT]`, `[MONITOR_NOT_FOUND]`,
-   and any future public error category through the same matching surface.
-3. Treat a future switch to custom `err.code` as a breaking public API change
+   and any future public error category through `isCapturaError(err, code)`
+   plus at least one direct `err.message.startsWith('[CODE]')` regression
+   guard so the wire format cannot drift silently.
+3. The `CapturaErrorCode` JS enum is generated from the Rust
+   `JsCapturaErrorCode` enum in `crates/interop/src/types.rs` via
+   `#[napi(string_enum = "UPPER_SNAKE")]` so the wire codes, the Rust
+   variants, and the JS enum values stay in lockstep. Adding a domain error
+   category requires updating: (a) `captura_domain::CapturaErrorCode`,
+   (b) `JsCapturaErrorCode` plus its `From<CapturaErrorCode>` impl,
+   (c) the README error table, and (d) the integration tests.
+4. Treat a future switch to custom `err.code` as a breaking public API change
    unless both matching forms are supported for a full major cycle.
+5. Keep errors.d.ts file aligned with the public error contract and documented categories, same for manual lists of error categories in README and tests.
 
 ---
 

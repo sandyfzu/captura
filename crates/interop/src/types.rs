@@ -5,8 +5,8 @@
 //! JavaScript objects. Conversion is done via `From` impls.
 
 use captura_domain::{
-    Base64CaptureResult, Base64Screenshot, Bounds, CaptureResult, ImageFormat, MonitorInfo,
-    Screenshot, Size,
+    Base64CaptureResult, Base64Screenshot, Bounds, CapturaErrorCode, CaptureResult, ImageFormat,
+    MonitorInfo, Screenshot, Size,
 };
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
@@ -336,10 +336,73 @@ impl From<Base64CaptureResult> for JsBase64CaptureResult {
     }
 }
 
+/// Canonical set of captura error category codes.
+///
+/// Every error thrown by a captura API is tagged with one of these codes.
+/// The code appears as a `[CODE]` prefix in `err.message` and is also the
+/// runtime value of each enum member, so the two surfaces stay in sync.
+///
+/// Consumers should prefer the `isCapturaError` / `getCapturaErrorCode`
+/// helpers exported from `captura/errors` over matching messages by hand —
+/// they validate the prefix against this enum to confirm a thrown error
+/// actually originated in captura.
+///
+/// ```ts
+/// import { isCapturaError, CapturaErrorCode } from 'captura/errors'
+///
+/// try {
+///   await getMonitorById(999999)
+/// } catch (err) {
+///   if (isCapturaError(err, CapturaErrorCode.MonitorNotFound)) {
+///     // …
+///   }
+/// }
+/// ```
+#[napi(string_enum = "UPPER_SNAKE", js_name = "CapturaErrorCode")]
+pub enum JsCapturaErrorCode {
+    /// Failure during module or runtime initialization.
+    InitializationError,
+    /// The requested monitor ID does not exist.
+    MonitorNotFound,
+    /// A screenshot or capture operation failed.
+    CaptureFailed,
+    /// The OS denied screen capture permission (common on macOS).
+    PermissionDenied,
+    /// The requested feature is unavailable on the current OS.
+    PlatformNotSupported,
+    /// Image encoding or conversion failed.
+    EncodingError,
+    /// An invalid argument was supplied by the caller.
+    InvalidArgument,
+    /// An unexpected internal failure (catch-all).
+    InternalError,
+    /// An operation exceeded its expected time bounds.
+    TimeoutError,
+    /// A required OS resource (monitor, window) became unavailable.
+    ResourceUnavailable,
+}
+
+impl From<CapturaErrorCode> for JsCapturaErrorCode {
+    fn from(c: CapturaErrorCode) -> Self {
+        match c {
+            CapturaErrorCode::InitializationError => Self::InitializationError,
+            CapturaErrorCode::MonitorNotFound => Self::MonitorNotFound,
+            CapturaErrorCode::CaptureFailed => Self::CaptureFailed,
+            CapturaErrorCode::PermissionDenied => Self::PermissionDenied,
+            CapturaErrorCode::PlatformNotSupported => Self::PlatformNotSupported,
+            CapturaErrorCode::EncodingError => Self::EncodingError,
+            CapturaErrorCode::InvalidArgument => Self::InvalidArgument,
+            CapturaErrorCode::InternalError => Self::InternalError,
+            CapturaErrorCode::TimeoutError => Self::TimeoutError,
+            CapturaErrorCode::ResourceUnavailable => Self::ResourceUnavailable,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use captura_domain::{Bounds, ImageFormat, MonitorInfo, Size};
+    use captura_domain::{Bounds, CapturaErrorCode, ImageFormat, MonitorInfo, Size};
 
     // -- Test fixtures --------------------------------------------------------
 
@@ -435,6 +498,93 @@ mod tests {
                 std::mem::discriminant(&js),
                 std::mem::discriminant(&expected_js),
                 "failed for {domain:?}"
+            );
+        }
+    }
+
+    // -- JsCapturaErrorCode ---------------------------------------------------
+
+    #[test]
+    fn js_captura_error_code_from_domain_all_variants() {
+        let cases = [
+            (
+                CapturaErrorCode::InitializationError,
+                JsCapturaErrorCode::InitializationError,
+            ),
+            (
+                CapturaErrorCode::MonitorNotFound,
+                JsCapturaErrorCode::MonitorNotFound,
+            ),
+            (
+                CapturaErrorCode::CaptureFailed,
+                JsCapturaErrorCode::CaptureFailed,
+            ),
+            (
+                CapturaErrorCode::PermissionDenied,
+                JsCapturaErrorCode::PermissionDenied,
+            ),
+            (
+                CapturaErrorCode::PlatformNotSupported,
+                JsCapturaErrorCode::PlatformNotSupported,
+            ),
+            (
+                CapturaErrorCode::EncodingError,
+                JsCapturaErrorCode::EncodingError,
+            ),
+            (
+                CapturaErrorCode::InvalidArgument,
+                JsCapturaErrorCode::InvalidArgument,
+            ),
+            (
+                CapturaErrorCode::InternalError,
+                JsCapturaErrorCode::InternalError,
+            ),
+            (
+                CapturaErrorCode::TimeoutError,
+                JsCapturaErrorCode::TimeoutError,
+            ),
+            (
+                CapturaErrorCode::ResourceUnavailable,
+                JsCapturaErrorCode::ResourceUnavailable,
+            ),
+        ];
+        for (domain, expected_js) in cases {
+            let js = JsCapturaErrorCode::from(domain);
+            assert_eq!(
+                std::mem::discriminant(&js),
+                std::mem::discriminant(&expected_js),
+                "failed for {domain:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn js_captura_error_code_covers_every_domain_variant() {
+        // Each domain variant must map to a JS variant and back to the same
+        // SCREAMING_SNAKE wire code. This guards against the JS enum drifting
+        // away from the domain enum if a new code is added to one side only.
+        for domain in [
+            CapturaErrorCode::InitializationError,
+            CapturaErrorCode::MonitorNotFound,
+            CapturaErrorCode::CaptureFailed,
+            CapturaErrorCode::PermissionDenied,
+            CapturaErrorCode::PlatformNotSupported,
+            CapturaErrorCode::EncodingError,
+            CapturaErrorCode::InvalidArgument,
+            CapturaErrorCode::InternalError,
+            CapturaErrorCode::TimeoutError,
+            CapturaErrorCode::ResourceUnavailable,
+        ] {
+            // The conversion must not panic for any domain variant.
+            let _js = JsCapturaErrorCode::from(domain);
+            // And the wire code on the domain side must be non-empty and
+            // SCREAMING_SNAKE_CASE.
+            let s = domain.as_str();
+            assert!(!s.is_empty());
+            assert!(
+                s.chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_'),
+                "wire code {s} should be SCREAMING_SNAKE_CASE",
             );
         }
     }

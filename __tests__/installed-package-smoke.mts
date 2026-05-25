@@ -9,11 +9,20 @@ import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 
 type InstalledCaptura = Record<string, unknown>
+type InstalledCapturaErrors = {
+  CapturaErrorCode: Record<string, string>
+  getCapturaErrorCode: (err: unknown) => string | undefined
+  isCapturaError: (err: unknown, code?: string) => boolean
+}
 
 const smokeRequire = createRequire(join(process.cwd(), 'package.json'))
 
 function loadInstalledPackage(): InstalledCaptura {
   return smokeRequire('captura') as InstalledCaptura
+}
+
+function loadInstalledErrorsSubpath(): InstalledCapturaErrors {
+  return smokeRequire('captura/errors') as InstalledCapturaErrors
 }
 
 function installedPackageDirectory(): string {
@@ -42,23 +51,30 @@ function declaredFunctionExports(): string[] {
   return sorted
 }
 
-function assertInvalidArgument(error: unknown): true {
-  assert.ok(error instanceof Error, `Expected Error, got ${typeof error}`)
-  assert.ok(
-    error.message.startsWith('[INVALID_ARGUMENT]'),
-    `Expected [INVALID_ARGUMENT] prefix, got: ${error.message}`,
-  )
-  return true
-}
-
 describe('installed captura package', () => {
   const captura = loadInstalledPackage()
+  const errors = loadInstalledErrorsSubpath()
 
   for (const name of declaredFunctionExports()) {
     it(`exports ${name} as a function`, () => {
       assert.equal(typeof captura[name], 'function')
     })
   }
+
+  it('exposes CapturaErrorCode from the main entry', () => {
+    const codes = (captura as { CapturaErrorCode?: Record<string, string> })
+      .CapturaErrorCode
+    assert.ok(codes && typeof codes === 'object', 'CapturaErrorCode must be exported')
+    assert.equal(codes['InvalidArgument'], 'INVALID_ARGUMENT')
+    assert.equal(codes['MonitorNotFound'], 'MONITOR_NOT_FOUND')
+  })
+
+  it('exposes the captura/errors subpath helpers', () => {
+    assert.equal(typeof errors.isCapturaError, 'function')
+    assert.equal(typeof errors.getCapturaErrorCode, 'function')
+    assert.equal(typeof errors.CapturaErrorCode, 'object')
+    assert.equal(errors.CapturaErrorCode.InvalidArgument, 'INVALID_ARGUMENT')
+  })
 
   it('rejects an invalid image format with INVALID_ARGUMENT', async () => {
     const captureAllMonitors = captura.captureAllMonitors
@@ -69,7 +85,30 @@ describe('installed captura package', () => {
         (captureAllMonitors as (format: string) => Promise<unknown>)(
           'definitely-not-a-format',
         ),
-      assertInvalidArgument,
+      (err: unknown) => {
+        assert.ok(err instanceof Error)
+        // Pin the wire-format contract.
+        assert.ok(
+          err.message.startsWith('[INVALID_ARGUMENT]'),
+          `Expected [INVALID_ARGUMENT] prefix, got: ${err.message}`,
+        )
+        // Validate through the public helper sourced from the installed package.
+        assert.ok(
+          errors.isCapturaError(err, errors.CapturaErrorCode.InvalidArgument),
+          'installed errors.isCapturaError must classify the rejection',
+        )
+        assert.equal(
+          errors.getCapturaErrorCode(err),
+          errors.CapturaErrorCode.InvalidArgument,
+        )
+        return true
+      },
     )
+  })
+
+  it('captura/errors helper rejects spoofed [CODE] prefixes', () => {
+    const spoof = new Error('[NOT_A_REAL_CODE] not from captura')
+    assert.equal(errors.isCapturaError(spoof), false)
+    assert.equal(errors.getCapturaErrorCode(spoof), undefined)
   })
 })

@@ -34,6 +34,10 @@ import {
   getMonitors,
 } from '../index.js'
 import type { Base64CaptureResult, CaptureResult, Monitor, Size } from '../index.js'
+import {
+  getCapturaErrorCode,
+  isCapturaError,
+} from '../errors.js'
 
 type ImageFormatName = 'Raw' | 'Png' | 'Jpeg' | 'WebP' | 'Avif'
 type EncodedImageFormatName = 'Png' | 'Jpeg' | 'WebP' | 'Avif'
@@ -103,6 +107,8 @@ interface SerializedError {
   message: string
   code: string | number | null
   stack: string | null
+  capturaErrorCode: string | null
+  isCapturaError: boolean
 }
 
 interface CallRecord {
@@ -1591,6 +1597,10 @@ function renderErrors(errors: readonly CallRecord[]): string {
     <h3>${escapeHtml(call.label)}</h3>
     <div>${renderStatus(call)} <span>${escapeHtml(formatMs(call.durationMs))}</span></div>
     <p><strong>${escapeHtml(call.error?.name ?? 'Error')}:</strong> ${escapeHtml(call.error?.message ?? 'No message')}</p>
+    <p class="muted">
+      isCapturaError: <code>${escapeHtml(String(call.error?.isCapturaError ?? false))}</code>
+      &middot; getCapturaErrorCode: <code>${escapeHtml(call.error?.capturaErrorCode ?? 'undefined')}</code>
+    </p>
     ${call.error?.stack === null ? '' : `<pre>${escapeHtml(call.error?.stack ?? '')}</pre>`}
   </article>`).join('')}</div>`
 }
@@ -1761,6 +1771,8 @@ function serializeError(error: unknown): SerializedError {
       message: error.message,
       code: getErrorCode(error),
       stack: typeof error.stack === 'string' ? error.stack : null,
+      capturaErrorCode: getCapturaErrorCode(error) ?? null,
+      isCapturaError: isCapturaError(error),
     }
   }
 
@@ -1769,6 +1781,8 @@ function serializeError(error: unknown): SerializedError {
     message: String(error),
     code: null,
     stack: null,
+    capturaErrorCode: null,
+    isCapturaError: false,
   }
 }
 
