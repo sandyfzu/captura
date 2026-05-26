@@ -431,6 +431,10 @@ as `captura.linux-arm64-gnu.node` on Linux ARM64 glibc or
 
 ## Development
 
+The published package supports Node.js 20.3.0 or newer. Repository development
+requires Node.js 22.22.1 or newer because the pre-commit tooling uses
+lint-staged 17.
+
 ```bash
 npm ci
 npm run build
