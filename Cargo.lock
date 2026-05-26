@@ -389,7 +389,7 @@ checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
 
 [[package]]
 name = "captura"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "captura-core",
  "captura-domain",
@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "captura-core"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "base64",
  "captura-domain",
@@ -412,14 +412,14 @@ dependencies = [
 
 [[package]]
 name = "captura-domain"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "captura-utils"
-version = "0.9.0"
+version = "1.0.0"
 dependencies = [
  "base64",
  "captura-domain",

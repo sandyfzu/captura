@@ -1,6 +1,6 @@
 {
   "name": "captura",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "description": "Cross-platform screen capture for Node.js — a high-performance native module with a fully typed async TypeScript API",
   "keywords": [
     "screenshot",
