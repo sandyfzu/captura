@@ -491,7 +491,7 @@ jobs:
           const { readFileSync } = require('node:fs')
           const report = JSON.parse(readFileSync('pack-root.json', 'utf8'))[0]
           const packed = new Set(report.files.map((file) => file.path))
-          for (const required of ['README.md', 'CHANGELOG.md', 'RELEASE.md', 'LICENSE', 'index.js', 'index.d.ts', 'package.json']) {
+          for (const required of ['README.md', 'CHANGELOG.md', 'LICENSE', 'index.js', 'index.d.ts', 'errors.js', 'errors.mjs', 'errors.d.ts', 'package.json']) {
             if (!packed.has(required)) {
               throw new Error(`Root package dry-run is missing ${required}`)
             }

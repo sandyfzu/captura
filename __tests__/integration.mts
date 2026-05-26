@@ -261,18 +261,45 @@ describe('captura/errors helpers', () => {
     assert.equal(isCapturaError({ message: '[INVALID_ARGUMENT] plain obj' }), false)
   })
 
-  it('isCapturaError narrows the type with the code parameter', async () => {
+  it('isCapturaError narrows the type with the code parameter', async (t: TestContext) => {
+    // 1. "Wrong code is rejected" — exercised via captureMonitor with an
+    //    invalid format string, which fails synchronously inside the interop
+    //    layer (no OS monitor enumeration required), so this branch runs on
+    //    every platform, including headless Linux CI.
     await assert.rejects(
-      () => getMonitorById(0xfffffff),
+      () => captureMonitor(1, 'bmp'),
       (err: unknown) => {
-        // Wrong code must NOT match even though err is a captura error.
+        assert.ok(isCapturaError(err, CapturaErrorCode.InvalidArgument))
         assert.equal(
-          isCapturaError(err, CapturaErrorCode.InvalidArgument),
+          isCapturaError(err, CapturaErrorCode.MonitorNotFound),
           false,
+          'wrong code must not match even when err is a captura error',
         )
-        assert.ok(isCapturaError(err, CapturaErrorCode.MonitorNotFound))
         return true
       },
+    )
+
+    // 2. "Correct code matches" — requires a real MONITOR_NOT_FOUND, which
+    //    only surfaces when xcap::Monitor::all() succeeds first. On headless
+    //    Linux runners (no X11/Wayland session) that enumeration fails with
+    //    [RESOURCE_UNAVAILABLE] before the ID lookup, so we skip when no
+    //    display is available. macOS / Windows CI runners have a desktop
+    //    session and exercise this path normally.
+    let hasDisplay = false
+    try {
+      const ms = await getMonitors()
+      hasDisplay = ms.length > 0
+    } catch {
+      hasDisplay = false
+    }
+    if (!hasDisplay) {
+      t.skip('no display available — cannot exercise MonitorNotFound path')
+      return
+    }
+
+    await assert.rejects(
+      () => getMonitorById(0xfffffff),
+      (err: unknown) => isCapturaError(err, CapturaErrorCode.MonitorNotFound),
     )
   })
 })
