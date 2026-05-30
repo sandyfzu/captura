@@ -113,6 +113,14 @@ The error enum should cover at least these categories:
 | `TIMEOUT_ERROR` | Operation exceeded expected time bounds |
 | `RESOURCE_UNAVAILABLE` | OS resource (monitor, window) became unavailable |
 
+As of v1.0.0, `INITIALIZATION_ERROR`, `PERMISSION_DENIED`,
+`PLATFORM_NOT_SUPPORTED`, and `TIMEOUT_ERROR` are **reserved**: they are part of
+the stable enum for forward compatibility but are not emitted by any current
+runtime path (a failed capture surfaces as `CAPTURE_FAILED`). See the
+`TODO(1.1.0)` note in `crates/domain/src/error.rs`. Activating any reserved
+category must update `CapturaErrorCode`, `JsCapturaErrorCode`, `errors.d.ts`,
+the README error table, and the integration tests together.
+
 Additional categories should be added when they make semantic sense for the domain.
 
 ### JavaScript Representation
@@ -314,7 +322,7 @@ interface Size {
 - **Base64 variants** (`captureMonitorBase64`, `captureAllMonitorsBase64`) return the encoded image data as an RFC 4648 Base64 string instead of a `Buffer`. Base64 encoding is performed on the Rust side using the `base64` crate before crossing the FFI boundary. **Raw is not supported for Base64** — passing `'Raw'` to a Base64 function returns an `INVALID_ARGUMENT` error because raw pixel data is not self-describing and has no meaningful MIME type for data URIs.
 - Encoding is performed on the Rust side using the `image` crate (a direct dependency, also a transitive dependency via `xcap`) before transferring ownership to JavaScript.
 - Supported encoding formats (PNG, JPEG, WebP, AVIF) are selected via an optional parameter (PNG default) and handled entirely in the utility layer. The interop layer passes the option through; it does not contain encoding logic. All formats use default encoder settings — WebP is lossless only.
-- **Raw bypasses the utility encoding layer entirely.** In the core layer, `RgbaImage::into_raw()` moves the underlying `Vec<u8>` to the `Screenshot` struct without additional copies or allocations. The interop layer then wraps this `Vec<u8>` into a NAPI `Buffer`, which transfers ownership to the V8 garbage collector — again without copying. Note that the upstream capture library normalises the OS-native pixel format (e.g. BGRA, various bit depths) to RGBA8 before captura receives the buffer.
+- **Raw bypasses the utility encoding layer entirely.** In the core layer, `RgbaImage::into_raw()` moves the underlying `Vec<u8>` to the `Screenshot` struct without additional copies or allocations. The interop layer then wraps this `Vec<u8>` into a NAPI `Buffer`. Construction is zero-copy (`Buffer::from(Vec<u8>)` `mem::forget`s the `Vec` and keeps its raw pointer). When the value is returned to JavaScript, napi-rs hands the buffer to V8 via `napi_create_external_buffer`, which is zero-copy on Node.js (the V8 GC finalizer frees the `Vec`). On runtimes that disallow external buffers (notably Electron, which sets `napi_no_external_buffers_allowed`), napi-rs automatically falls back to `napi_create_buffer_copy`, performing a single copy. Source: napi-rs `crates/napi/src/bindgen_runtime/js_values/buffer.rs` (`impl From<Vec<u8>> for Buffer`, `impl ToNapiValue for Buffer`) and the Node-API `napi_create_external_buffer` docs. Note that the upstream capture library normalises the OS-native pixel format (e.g. BGRA, various bit depths) to RGBA8 before captura receives the buffer.
 - For encoded formats, avoid unnecessary memory copies. Encode once on the Rust side and transfer ownership to JavaScript.
 - Large image buffers must not be cloned unnecessarily.
 - Be mindful of buffer sizes, especially for high-DPI monitors (source RGBA is width × height × 4 bytes — e.g. a 3840×2160 display produces ~33 MB of raw pixel data before encoding).

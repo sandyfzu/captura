@@ -863,6 +863,12 @@ jobs:
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
+          # Force provenance attestations so the publish fails loudly if the
+          # "Built and signed on GitHub Actions" badge cannot be generated,
+          # instead of silently shipping without it. Trusted Publishing would
+          # otherwise generate provenance automatically only on a best-effort
+          # basis. Requires the id-token: write permission above.
+          NPM_CONFIG_PROVENANCE: "true"
         run: bash .github/scripts/publish-npm-tarballs.sh
 
   publish_token_bootstrap:
@@ -875,6 +881,10 @@ jobs:
       name: ${{ format('npm-{0}', 'bootstrap') }}
     permissions:
       contents: read
+      # Needed to mint the Sigstore OIDC token that signs provenance. The npm
+      # auth itself still uses the one-time NPM_TOKEN; id-token: write only
+      # enables provenance signing and grants no additional registry access.
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -895,6 +905,10 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
           NPM_TAG: ${{ needs.prepare.outputs.npm_tag }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Sign provenance on the first publish too. Token-based auth combined
+          # with OIDC provenance signing is the classic, supported flow, so the
+          # bootstrap release carries the provenance badge from day one.
+          NPM_CONFIG_PROVENANCE: "true"
         run: |
           set -euo pipefail
 

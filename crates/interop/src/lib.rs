@@ -89,6 +89,9 @@ pub async fn capture_monitor(
 /// captures. When omitted it defaults to PNG. Pass `'Raw'` for the
 /// fastest capture path — raw RGBA8 pixels with no encoding overhead.
 ///
+/// This call is **fail-fast**: if capturing any monitor fails, the returned
+/// promise rejects with that error and no partial results are produced.
+///
 /// ```ts
 /// const results: CaptureResult[] = await captureAllMonitors()
 /// const avifResults: CaptureResult[] = await captureAllMonitors('Avif')
@@ -140,6 +143,9 @@ pub async fn capture_monitor_base64(
 /// The `'Raw'` format is **not supported** for Base64 capture functions.
 /// Passing `'Raw'` returns an `INVALID_ARGUMENT` error.
 ///
+/// This call is **fail-fast**: if capturing any monitor fails, the returned
+/// promise rejects with that error and no partial results are produced.
+///
 /// ```ts
 /// const results: Base64CaptureResult[] = await captureAllMonitorsBase64()
 /// ```
@@ -157,6 +163,17 @@ pub async fn capture_all_monitors_base64(
         .map(JsBase64CaptureResult::from)
         .collect())
 }
+
+// TODO(1.1.0): Add lenient capture-all variants (e.g. `capture_all_monitors_lenient`
+// and `capture_all_monitors_base64_lenient`) that do not fail fast. Instead of
+// rejecting the whole promise when a single monitor fails, they should capture
+// every monitor independently and return a per-monitor result that distinguishes
+// successes from failures (e.g. `Vec<Result<CaptureResult, CapturaError>>` mapped
+// to a JS shape carrying both the monitor metadata and either the screenshot or a
+// structured error). This complements the existing fail-fast `capture_all_monitors`
+// / `capture_all_monitors_base64` for callers that prefer partial results. When
+// implemented, mirror the change across the core layer, the TypeScript types, the
+// README API table, and the integration + smoke-report tests.
 
 // ---------------------------------------------------------------------------
 // Internal helpers

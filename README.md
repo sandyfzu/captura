@@ -318,17 +318,22 @@ Do not rely on `err.code` for captura domain matching in the current async API.
 With napi-rs v3 promise rejections, `err.code` is reserved for the N-API status
 code; captura keeps the domain code in the message prefix.
 
+Four categories — `INITIALIZATION_ERROR`, `PERMISSION_DENIED`,
+`PLATFORM_NOT_SUPPORTED`, and `TIMEOUT_ERROR` — are **reserved**. They are part
+of the stable error enum for forward compatibility but are not emitted by any
+current code path; a failed capture today surfaces as `CAPTURE_FAILED`.
+
 | Error code | Description |
 | --- | --- |
-| `INITIALIZATION_ERROR` | Failure during module or runtime initialization. |
+| `INITIALIZATION_ERROR` | Reserved (not currently emitted). Failure during module or runtime initialization. |
 | `MONITOR_NOT_FOUND` | Requested monitor ID does not exist. |
 | `CAPTURE_FAILED` | Screenshot operation failed. |
-| `PERMISSION_DENIED` | Explicitly detected OS screen-capture permission denial (Depending on the OS this error may never occur, since some OS can make this fail silently or simply return a blank image). |
-| `PLATFORM_NOT_SUPPORTED` | Feature unavailable on this OS. |
+| `PERMISSION_DENIED` | Reserved (not currently emitted). Planned explicit OS screen-capture permission denial; today a denied capture surfaces as `CAPTURE_FAILED`. |
+| `PLATFORM_NOT_SUPPORTED` | Reserved (not currently emitted). Feature unavailable on this OS. |
 | `ENCODING_ERROR` | Image encoding failure. |
 | `INVALID_ARGUMENT` | Invalid parameter, such as an unsupported format string. |
 | `INTERNAL_ERROR` | Unexpected internal failure. |
-| `TIMEOUT_ERROR` | Operation exceeded time bounds. |
+| `TIMEOUT_ERROR` | Reserved (not currently emitted). Operation exceeded time bounds. |
 | `RESOURCE_UNAVAILABLE` | OS resource became unavailable. |
 
 ## Performance Notes
@@ -341,7 +346,8 @@ latency target, and host CPU budget.
 
 `captureAllMonitors()` and `captureAllMonitorsBase64()` capture monitors
 sequentially inside one request to reduce contention in the OS capture
-subsystem.
+subsystem. They are **fail-fast**: if any monitor capture fails, the whole call
+rejects with that error and no partial results are returned.
 
 Use `'Raw'` when you need the fastest path and plan to process or encode pixels
 with your own pipeline. Use PNG/JPEG/WebP/AVIF when you need ready-to-write
@@ -349,10 +355,10 @@ image files.
 
 ## Platform Notes
 
-- **macOS** - Screen Recording permission is required. If the OS or capture
-  layer reports a distinguishable permission denial, captura surfaces
-  `[PERMISSION_DENIED]`; otherwise the failed capture is reported as
-  `[CAPTURE_FAILED]` with platform error text in the message.
+- **macOS** - Screen Recording permission is required. A denied or otherwise
+  failed capture is currently surfaced as `[CAPTURE_FAILED]` with the platform
+  error text in the message. A dedicated `[PERMISSION_DENIED]` category is
+  reserved for a future release that preflights Screen Recording access.
 - **Linux** - X11 and Wayland are supported, subject to the compositor and
   desktop portal environment. Minimal images and containers may need native
   runtime libraries installed before the addon can load.
@@ -412,7 +418,7 @@ want to run:
 ```bash
 git clone https://github.com/sandyfzu/captura.git
 cd captura
-git checkout v0.9.0 # replace with the captura version you installed
+git checkout v1.0.0 # replace with the captura version you installed
 npm ci
 npm run build
 ```
@@ -432,8 +438,9 @@ as `captura.linux-arm64-gnu.node` on Linux ARM64 glibc or
 ## Development
 
 The published package supports Node.js 20.3.0 or newer. Repository development
-requires Node.js 22.22.1 or newer because the pre-commit tooling uses
-lint-staged 17.
+targets Node.js 24 or newer, declared via the `devEngines` field in
+`package.json` and matched by CI. The minimum the dev tooling will tolerate is
+Node.js 22.22.1 (required by lint-staged 17).
 
 ```bash
 npm ci
@@ -446,7 +453,7 @@ cargo test --workspace --locked
 Maintainers preparing a release should follow [RELEASE.md](RELEASE.md). The
 release workflow builds all eight native targets, generates the platform npm
 packages, validates tarballs, smoke-tests installs, and publishes with npm
-Trusted Publishing.
+Trusted Publishing and signed build provenance.
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 

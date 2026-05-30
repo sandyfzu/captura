@@ -12,9 +12,27 @@ use std::fmt;
 /// `[CODE]` prefix for programmatic handling. With napi-rs v3 async promise
 /// rejections, JavaScript `err.code` is reserved for the N-API status code.
 ///
+/// # Reserved categories
+///
+/// As of v1.0.0 the runtime only produces `MONITOR_NOT_FOUND`, `CAPTURE_FAILED`,
+/// `ENCODING_ERROR`, `INVALID_ARGUMENT`, `INTERNAL_ERROR`, and
+/// `RESOURCE_UNAVAILABLE`. The remaining variants — `INITIALIZATION_ERROR`,
+/// `PERMISSION_DENIED`, `PLATFORM_NOT_SUPPORTED`, and `TIMEOUT_ERROR` — are
+/// **reserved**: they are part of the stable enum for forward compatibility but
+/// are not emitted by any current code path.
+///
 /// # References
 ///
 /// - AGENTS.md § Error Categories
+//
+// TODO(1.1.0): Wire up the reserved categories where they add value:
+//   - macOS `PERMISSION_DENIED`: preflight Screen Recording access via Core
+//     Graphics `CGPreflightScreenCaptureAccess` before a capture and surface
+//     this code when access is denied, instead of the generic `CAPTURE_FAILED`.
+//   - `PLATFORM_NOT_SUPPORTED`: classify Wayland/portal "unsupported" outcomes.
+//   - `TIMEOUT_ERROR`: add an optional capture timeout wrapper.
+// Keep this enum, `errors.d.ts`, the README error table, and the integration
+// tests in lockstep when emitting any newly-activated category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CapturaErrorCode {
     /// Failure during module or runtime initialisation.

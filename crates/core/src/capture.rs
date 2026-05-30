@@ -38,7 +38,7 @@
 //! - macOS scale_factor: `CGDisplayMode::pixel_width() / CGDisplayBounds().width` (xcap `src/macos/impl_monitor.rs`)
 //! - Windows: `DEVMODEW.dmPelsWidth` / `dmPelsHeight` = display resolution in physical pixels — [MSDN](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/ns-wingdi-devmodew)
 //! - Linux: xcap divides raw XRandR dimensions by `Xft.dpi / 96` (xcap `src/linux/impl_monitor.rs` lines 305-324)
-//! - `xcap` v0.9.3 — `Monitor::all()`, `Monitor::capture_image()`
+//! - `xcap` 0.9.x — `Monitor::all()`, `Monitor::capture_image()`
 //! - `tokio::task::spawn_blocking` — offloads synchronous work
 
 use captura_domain::{

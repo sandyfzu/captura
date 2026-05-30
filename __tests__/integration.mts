@@ -216,9 +216,24 @@ describe('captura/errors helpers', () => {
       const value = (CapturaErrorCode as Record<string, unknown>)[key]
       if (typeof value === 'string') actual.add(value)
     }
+    // Bidirectional alignment: the native enum must expose exactly the
+    // documented set — no missing codes and no undocumented extras. This keeps
+    // the Rust `CapturaErrorCode`/`JsCapturaErrorCode` enums, `errors.d.ts`,
+    // and the README error table from drifting apart.
     for (const code of expected) {
       assert.ok(actual.has(code), `Missing CapturaErrorCode wire value: ${code}`)
     }
+    for (const code of actual) {
+      assert.ok(
+        expected.includes(code),
+        `Undocumented CapturaErrorCode wire value: ${code}`,
+      )
+    }
+    assert.equal(
+      actual.size,
+      expected.length,
+      'CapturaErrorCode wire values must match the documented set exactly',
+    )
   })
 
   it('isCapturaError detects a real captura rejection', async () => {

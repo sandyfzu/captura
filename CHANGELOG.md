@@ -5,10 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-05-29
+
+First stable release. The public JavaScript/TypeScript API, the `[CODE]`
+error-message contract, and the native package layout are now covered by
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) guarantees.
+
+### Added
+
+- Added a Rust-to-TypeScript error-contract alignment test that asserts the
+  canonical `CapturaErrorCode` enum, the `errors.d.ts` declarations, and the
+  documented wire codes stay in lockstep.
 
 ### Changed
 
+- Release workflow now enables npm provenance explicitly (`NPM_CONFIG_PROVENANCE`)
+  on both the Trusted Publishing and one-time token-bootstrap publish paths, and
+  grants the bootstrap job `id-token: write` so the first publish is also signed.
+  Published packages now carry the "Built and signed on GitHub Actions"
+  provenance badge, and a release fails loudly if provenance cannot be generated.
+- Refreshed Rust and npm dependencies to their latest compatible versions and
+  re-pinned `Cargo.lock` and `package-lock.json`.
+- Documented `PERMISSION_DENIED`, `PLATFORM_NOT_SUPPORTED`, `TIMEOUT_ERROR`, and
+  `INITIALIZATION_ERROR` as reserved error categories — they are part of the
+  stable enum for forward compatibility but no current API path emits them.
+- Documented that `captureAllMonitors()` and `captureAllMonitorsBase64()` are
+  fail-fast: if any monitor capture fails the whole call rejects and no partial
+  results are returned.
+- Clarified the zero-copy `Buffer` contract: raw RGBA pixels are moved into the
+  JavaScript `Buffer` without copying on Node.js via N-API external buffers,
+  with an automatic single-copy fallback on runtimes that disallow external
+  buffers (notably Electron).
+- Added a contributor-only Node.js requirement for the test toolchain via
+  `devEngines`, while keeping the published `engines` floor at Node >= 20.3.0.
+- Corrected a stale `xcap` version reference in internal core documentation.
 - Corrected public documentation for async error matching: captura domain error
   codes are documented as `[CODE]` message prefixes instead of a custom
   `err.code` property.
@@ -106,5 +136,6 @@ Node.js, built with Rust.
   covering module exports, error handling, live capture, format coverage, and
   Raw buffer size validation.
 
-[unreleased]: https://github.com/sandyfzu/captura/compare/v0.9.0...HEAD
+[unreleased]: https://github.com/sandyfzu/captura/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/sandyfzu/captura/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/sandyfzu/captura/releases/tag/v0.9.0

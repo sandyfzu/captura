@@ -118,7 +118,8 @@ distinction clear and prevent accidental fallback to tokens in normal releases:
 - **`trusted-publishing`** — the normal tokenless OIDC path, attached to the
   `npm-production` environment.
 - **`token-bootstrap`** — a one-time first-publish path, attached to the
-  separate `npm-bootstrap` environment and not granted `id-token: write`.
+  separate `npm-bootstrap` environment. It is granted `id-token: write` only so
+  provenance can be signed; npm authentication still uses the one-time token.
 
 Use `token-bootstrap` only when none of the nine package names exist on npm yet.
 
@@ -524,8 +525,10 @@ Activated when `publish: true` and `publish_auth: trusted-publishing`.
 - Verifies Node.js and npm meet the Trusted Publishing minimum versions.
 - Refuses to publish if the root package version already exists on npm.
 - Publishes platform packages first, then the root package.
-- npm generates provenance automatically for public packages in public
-  repositories; the workflow does not pass `--provenance` explicitly.
+- Sets `NPM_CONFIG_PROVENANCE=true` so npm publishes provenance attestations
+  (the "Built and signed on GitHub Actions" badge) for every package. This is
+  explicit on purpose: the release fails loudly if provenance cannot be
+  generated, instead of silently publishing without it.
 
 Do not add `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `npm whoami` to this job.
 
@@ -534,7 +537,10 @@ Do not add `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `npm whoami` to this job.
 Activated when `publish: true` and `publish_auth: token-bootstrap`.
 
 - Uses `environment: npm-bootstrap` and the `NPM_TOKEN` environment secret.
-- Does not request `id-token: write`.
+- Grants `id-token: write` solely to sign provenance attestations via Sigstore;
+  npm authentication still uses the one-time `NPM_TOKEN`. This lets the very
+  first publish carry the same provenance badge as Trusted Publishing releases.
+- Sets `NPM_CONFIG_PROVENANCE=true` to require provenance on the bootstrap run.
 - Writes a temporary npm user config under `RUNNER_TEMP` with strict permissions
   (`umask 077`).
 - Removes the temporary config before the job exits.

@@ -29,6 +29,11 @@
  * This module declares its own local type / value pair (rather than
  * re-exporting the ambient `const enum` from `index.d.ts`) so it stays
  * compatible with `verbatimModuleSyntax` and `isolatedModules`.
+ *
+ * @remarks
+ * `INITIALIZATION_ERROR`, `PERMISSION_DENIED`, `PLATFORM_NOT_SUPPORTED`, and
+ * `TIMEOUT_ERROR` are **reserved**: they are part of the stable enum for
+ * forward compatibility but are not emitted by any current code path.
  */
 export type CapturaErrorCode =
   | 'INITIALIZATION_ERROR'
