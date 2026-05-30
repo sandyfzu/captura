@@ -51,6 +51,13 @@ error-message contract, and the native package layout are now covered by
   24.04 because the current pipewire-rs/libspa bindings require PipeWire headers
   newer than Ubuntu 22.04's package set, and documented source-build guidance
   for older or unsupported Linux targets.
+- Added a lockfile-integrity gate (`npm ci --dry-run`) to CI (a dedicated
+  `verify-lockfile` job), the release `verify` job (as an early fail-fast step
+  before the build matrix), and the Husky pre-push hook so `package-lock.json`
+  drift is caught before it can break `npm ci` on release runners. The Linux CI
+  and release jobs are the authoritative gate, since cross-platform
+  optional-dependency drift is not detectable on a developer's macOS/Windows
+  host.
 - Expanded CI to build and test every advertised native package target on
   matching GitHub-hosted runner architectures, using same-arch Alpine Docker for
   musl targets instead of QEMU or Linux cross-compilation.
@@ -88,6 +95,11 @@ error-message contract, and the native package layout are now covered by
   target list so dependency checks match the advertised NAPI target matrix.
 - Updated the transitive `bitstream-io` lockfile entry to remove the yanked
   `core2` crate from the dependency graph.
+- Restored the pruned `@emnapi/*` optional dependency nodes
+  (`@emnapi/core`, `@emnapi/runtime`, `@emnapi/wasi-threads`) to
+  `package-lock.json` by regenerating it from a clean install, so `npm ci`
+  no longer fails with "Missing ... from lock file" on Linux CI and release
+  runners.
 
 ## [0.9.0] - 2026-04-10
 

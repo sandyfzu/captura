@@ -13,7 +13,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 step=0
-total=6
+total=7
 
 run_step() {
   step=$((step + 1))
@@ -30,6 +30,12 @@ printf "\n${CYAN}═════════════════════
 printf "${CYAN}  captura pre-push checks${NC}\n"
 printf "${CYAN}══════════════════════════════════════════${NC}\n\n"
 
+# `npm ci --dry-run` is non-destructive (it does not touch node_modules) and
+# aborts if package-lock.json has drifted from package.json. It catches drift
+# relevant to THIS platform; cross-platform optional-dependency drift is only
+# detectable on the affected OS, so the Linux CI/release pipelines remain the
+# authoritative gate.
+run_step "Lockfile in sync"     "npm ci --dry-run --ignore-scripts --no-audit --no-fund"
 run_step "Rust formatting"      "cargo fmt --all --check"
 run_step "Clippy lints"         "cargo clippy --workspace --all-targets --locked -- -D warnings"
 run_step "Rust tests"           "cargo test --workspace --locked"

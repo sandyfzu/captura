@@ -151,6 +151,14 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
 
+      # Fail fast on lockfile drift before installing system packages or
+      # building Rust. A separate gate job is unnecessary here because `verify`
+      # already blocks the build matrix via `needs: [prepare, verify]`.
+      # `--dry-run` validates sync (EUSAGE on mismatch) without mutating state;
+      # the full `npm ci` below still performs the real install.
+      - name: Verify lockfile in sync
+        run: npm ci --dry-run --ignore-scripts --no-audit --no-fund
+
       - name: Install Linux system dependencies
         run: |
           sudo apt-get update

@@ -36,6 +36,27 @@ env:
 # ---------------------------------------------------------------------------
 
 jobs:
+  # ── Lockfile integrity ───────────────────────────────────────────────────
+  # Fast, dedicated gate that fails the run early if package-lock.json has
+  # drifted from package.json. `npm ci` aborts with EUSAGE when the lockfile is
+  # out of sync (validated while building the ideal tree, before any install),
+  # and `--dry-run` makes the check non-mutating. Running on Linux is what
+  # catches cross-platform optional-dependency pruning (e.g. missing @emnapi/*
+  # nodes) that a developer's macOS/Windows host cannot detect locally.
+  verify-lockfile:
+    name: Verify lockfile in sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Assert package-lock.json is in sync with package.json
+        run: npm ci --dry-run --ignore-scripts --no-audit --no-fund
+
   # ── Rust quality checks ──────────────────────────────────────────────────
   check:
     name: Rust (${{ matrix.settings.label }})
